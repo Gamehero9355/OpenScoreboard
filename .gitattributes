@@ -1,0 +1,12 @@
+# Line endings.
+#
+# Text is normalised to LF in the repository; git converts it back on checkout
+# where the platform wants that (core.autocrlf on Windows).
+* text=auto
+
+# Batch files are the exception in both directions. cmd.exe is handed the bytes
+# that are committed, and a GitHub "Download ZIP" performs no checkout
+# conversion either, so the file has to be committed the way Windows runs it.
+# `-text` stores the CRLF endings verbatim instead of normalising them away,
+# which keeps clones and ZIP downloads identical -- and native.
+*.bat -text

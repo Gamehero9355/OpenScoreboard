@@ -4,18 +4,25 @@
  * invisible no matter how often the server is restarted. Start-Scoreboard.bat
  * calls this and rebuilds when it prints "stale".
  *
- * Exits 0 (rebuild) or 1 (up to date).
+ * Exits 0 (up to date) or non-zero (rebuild). Non-zero is also what a crash
+ * exits with, which is the safe direction: a check that cannot run rebuilds
+ * the app instead of leaving the launcher to start a server whose dist\ does
+ * not exist.
  */
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = resolve(import.meta.dirname, '..');
+// Not `import.meta.dirname`: that needs Node 20.11, and the launcher runs this
+// check before the Node version it recommends is known to be installed. The
+// URL form works on every release the app can start on at all.
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stamp = join(root, 'dist', 'client', 'index.html');
 const inputs = [
   'src',
   'public',
   'index.html',
-  'vite.config.ts',
+  'vite.config.mts',
   'tsconfig.json',
   'tsconfig.server.json',
   'package.json',
@@ -35,7 +42,7 @@ function newestFile(target) {
 
 if (!existsSync(stamp)) {
   console.log('stale: no build yet');
-  process.exit(0);
+  process.exit(1);
 }
 
 const builtAt = statSync(stamp).mtimeMs;
@@ -43,9 +50,9 @@ for (const input of inputs) {
   const found = newestFile(join(root, input));
   if (found && found.mtimeMs > builtAt) {
     console.log(`stale: ${relative(root, found.path)} is newer than the build`);
-    process.exit(0);
+    process.exit(1);
   }
 }
 
 console.log('up to date');
-process.exit(1);
+process.exit(0);

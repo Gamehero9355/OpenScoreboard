@@ -11,7 +11,10 @@
  * coming back.
  */
 import { describe, expect, it } from 'vitest';
-import { buildFingerprint } from '../vite.config';
+// The explicit extension is needed for TypeScript to resolve an `.mts` config
+// through an extensionless import; the file is `mts` so Vite loads its own
+// config as ESM instead of warning about the deprecated CJS build of its API.
+import { buildFingerprint } from '../vite.config.mts';
 
 describe('service worker build stamp', () => {
   it('is stable for the same build, so a rebuild of unchanged source does not churn caches', () => {

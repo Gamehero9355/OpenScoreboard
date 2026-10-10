@@ -70,6 +70,13 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Changed
 
+- **README §3 opens with the one-command Windows start.** `Start-Scoreboard.bat` was the
+  fastest way to a running scoreboard and the manual never mentioned it, so a Windows user
+  downloading the repository had to find the file, guess what it would do and learn from
+  the source. Section 3.1 now says exactly what the starter checks, installs, builds and
+  opens, that the first start needs one internet connection, and which flags it accepts;
+  the manual route and the desktop build follow it as 3.2 to 3.4.
+
 - **The manual schedule's match creation is its own step.** It used to share the
   *Spielplan* panel with the clock, the scoring buttons and the auto-assign
   switches, so the host picked their fixtures underneath a wall of unrelated
@@ -81,6 +88,38 @@ claimed to do, not as a list of regressions that were shipped and later patched.
   so a format gaining a step is one change rather than seven.
 
 ### Fixed
+
+- **The launcher could skip the build it needed.** `scripts/needs-build.mjs` answered
+  "stale" with exit code 0 and "up to date" with 1 — the code a crash exits with — so a
+  check that could not run was read as "nothing to do" and `Start-Scoreboard.bat` started
+  a server whose `dist/` did not exist. Exit code 0 now means up to date and anything else
+  means rebuild. The script also resolves its own directory with `fileURLToPath` instead of
+  `import.meta.dirname`, which does not exist before Node 20.11 and made the check itself
+  the thing that crashed there. `tests/needs-build.test.ts` pins both directions.
+- **The launcher's dependency check could be fooled.** It only looked for `express`, so an
+  install without the build tools (`npm install --omit=dev`, or a first start interrupted
+  halfway) passed the check and failed later inside `npm run build`. It now requires
+  `express`, `vite` and `typescript`, and it compares `node --version` against the
+  documented 22.5 minimum, naming the version it found rather than letting an older runtime
+  fail somewhere the reason is invisible.
+- **The launcher's first run read like a failed install.** `npm install` front-loaded 28
+  vulnerabilities, ten deprecation notices and the "install scripts not covered" warnings
+  before the build even started. The audit summary and the funding notice concern the build
+  tooling, never the scoreboard — the server runs on `express`, `qrcode` and `ws`, and
+  `npm audit --omit=dev` is clean — so the starter installs with
+  `--no-audit --no-fund --loglevel=error`. Errors still print, and a hand-typed
+  `npm install` still shows everything.
+- **Vite loads its config as ESM.** `vite.config.ts` went through Vite's deprecated
+  CJS API, so every build printed "The CJS build of Vite's Node API is deprecated" —
+  one more line a first-time user reads as a failure. As `vite.config.mts` the config
+  loads as ESM, the notice is gone, and the build output is only the build. The
+  staleness check and `tests/build-stamp.test.ts` follow the new name.
+- **Batch files now arrive on Windows as batch files.** `Start-Scoreboard.bat` was committed
+  with LF endings and the repository had no `.gitattributes`; a GitHub ZIP download hands
+  out the committed bytes without checkout conversion, so the one file a Windows user
+  double-clicks was the one file with the wrong endings for Windows. It is committed with
+  CRLF and marked `-text` so nothing converts it back, over a `* text=auto` default for the
+  rest of the tree.
 
 - **The schedule step's refusal was a red banner over the panel.** "Add at least
   one match to the schedule" was set as a full-width banner above the wizard —

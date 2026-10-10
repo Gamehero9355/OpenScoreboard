@@ -50,7 +50,23 @@ who want to see the scores.
 
 ## 3. Install and start
 
-### 3.1 From source (development, also how the desktop build is produced)
+### 3.1 The easy start (Windows: double-click)
+
+Download the repository and double-click **`Start-Scoreboard.bat`** in the folder. It checks
+Node.js, installs the dependencies on the first run, builds the web interface when it is
+missing or older than the source, then starts the server and opens the dashboard in your
+browser. The window prints the address for the phones and stays open while you play;
+`Ctrl+C` stops the server. It takes the same flags as the manual start:
+
+```bash
+Start-Scoreboard.bat --demo --port 3200
+```
+
+The very first start needs an internet connection for `npm install`; after that the
+scoreboard works entirely inside your own WLAN. The data lives in `data/` next to this file,
+exactly as it does for the manual start below.
+
+### 3.2 From source (development, also how the desktop build is produced)
 
 ```bash
 npm install
@@ -59,7 +75,7 @@ npm run dev          # backend on :3000, Vite dev server on :5273
 
 Open `http://127.0.0.1:3000` (or the Vite URL while developing) on the host PC.
 
-### 3.2 Production start (host PC only)
+### 3.3 Production start (host PC only)
 
 ```bash
 npm run build        # builds the web interface into dist/client and the server into dist/server
@@ -75,7 +91,7 @@ node dist/server/backend/index.js --data-dir D:\Events\Scoreboard
 node dist/server/backend/index.js --help
 ```
 
-### 3.3 Desktop application
+### 3.4 Desktop application
 
 ```bash
 npm run desktop      # build + launch the Electron shell
@@ -321,6 +337,13 @@ Run `npm run build` (or `npm run dev` while developing) and reload.
 
 The server automatically tries the next free port and prints the one it bound to. Pin a port
 with `--port 3200` if you need a fixed address for a printed QR code.
+
+**The first start prints npm warnings**
+
+The starter installs with `--no-audit --no-fund` on purpose: that report is about the build
+tooling (Electron, `electron-builder`, Vitest), never about the scoreboard. The server runs
+on `express`, `qrcode` and `ws`, and `npm audit --omit=dev` reports no vulnerabilities.
+Typing `npm install` by hand still shows everything.
 
 **Diagnostics**
 
