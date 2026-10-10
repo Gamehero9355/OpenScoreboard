@@ -1,0 +1,3657 @@
+/* ==========================================================================
+   Control interface — Scorer's Table
+   Table zones: enamel topbar plaque, two field sheets, start-list rail,
+   wall-poster bracket, table-edge statusbar. State is always mark + label,
+   never hue alone. Offline system faces only.
+   ========================================================================== */
+
+/* --- app frame ----------------------------------------------------------- */
+
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-strong);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+.brand:hover {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+.brand__mark {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  padding: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.brand__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.brand__title {
+  font-size: var(--step-1);
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand__sub {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.topbar__spacer {
+  flex: 1 1 auto;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: var(--step-0);
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: none;
+  transition: background 140ms var(--ease), color 140ms var(--ease), border-color 140ms var(--ease);
+}
+.nav__item:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.nav__item[aria-current='page'] {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  gap: var(--space-4);
+  max-width: 1720px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/*
+ * A page shown without the app shell (the results QR code opens this). The page
+ * keeps its own padding and max width -- it is a report, not a poster -- and only
+ * the top bar and the surrounding flex column are gone.
+ */
+.bare {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- layout -------------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--space-4);
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: start;
+}
+
+.shell__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.shell__side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--space-4));
+  max-height: calc(100vh - var(--topbar-h) - var(--space-6));
+  overflow-y: auto;
+  padding-bottom: var(--space-2);
+}
+
+/* A panel that takes the space left over in a flex column */
+.panel--fill {
+  flex: 1 1 auto;
+  min-height: 320px;
+  min-width: 0;
+}
+
+.panel--fill .panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+@media (max-width: 1180px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .shell__side {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+.fields {
+  display: grid;
+  /* One column per playing field: two side by side on a wide desk, wrapping
+     automatically when the tournament runs on more fields. */
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: var(--space-4);
+}
+
+/* --- dashboard field tabs: one playing field under full control at a time - */
+.field-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.field-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--step-0);
+  font-weight: 650;
+  transition: border-color 120ms var(--ease), background 120ms var(--ease), color 120ms var(--ease);
+}
+.field-tabs__tab:hover {
+  color: var(--text);
+  border-color: var(--brand);
+}
+.field-tabs__tab--active {
+  background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+  border-color: var(--brand);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.field-tabs__tab:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+.field-tabs__name {
+  white-space: nowrap;
+}
+.field-tabs__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+}
+.field-tabs__lock {
+  color: var(--accent);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* Sidebar field rows double as tab shortcuts. */
+.compact-list__row--pick {
+  width: 100%;
+  background: none;
+  border-top: 0;
+  border-right: 0;
+  border-left: 2px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding-left: calc(var(--space-4) - 2px);
+}
+.compact-list__row--pick:hover {
+  background: var(--surface-2);
+}
+.compact-list__row--active {
+  border-left-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+@media (max-width: 860px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page {
+    padding: var(--space-3);
+  }
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.grid-2 > .field-row,
+.grid-3 > .field-row {
+  margin-top: 0;
+}
+@media (max-width: 900px) {
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- page header: the figure strip -----------------------------------------
+   One sheet, the same object as the panels beneath it: full border, rounded
+   corners, sheet-rest shadow. Inside it a strip of labelled figure cells
+   sharing the full width, split by hairlines.
+
+   It replaces a flex row of edge-anchored zones. Past about 1100px that row
+   opened a hole most of the page wide between the tournament name and the one
+   number the page exists to show, and pushed the reference facts onto an
+   orphan line of their own. A strip cannot have that hole: every cell is a
+   column of the same ruler, so the slack is shared rather than stranded. */
+
+.pagehead {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.pagehead__strip {
+  display: grid;
+  /* auto-fit, not a fixed count: cells share whatever width there is, so the
+     strip is identical at 3 cells and at 8 and never leaves a gap column. */
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  /* The 1px gap shows the strip's own background through as the hairline
+     between cells, which keeps the rule unbroken when the strip folds onto a
+     second row -- where a per-cell border would draw a stray edge. */
+  gap: 1px;
+  background: var(--line);
+}
+
+.pagehead__cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface);
+}
+
+/* Identity is the only cell with no key above its value: the name speaks for
+   itself and a label over it would be decoration. */
+.pagehead__id {
+  gap: var(--space-2);
+}
+
+/* The name is the longest string in the strip and the one thing that must
+   never break, so it takes two tracks on a wide screen. On a single track at
+   1440 "U15 Radball Hallenliga" wrapped onto two lines and made the whole
+   ruler taller than the figures it exists to line up. */
+@media (min-width: 1080px) {
+  .pagehead__id {
+    grid-column: span 2;
+  }
+}
+
+/* A step above the panel titles, a step below the topbar. The topbar already
+   names the tournament, so the page must not outshout it or its own content. */
+.pagehead__title {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pagehead__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The ruler: every cell carries its key above its value, so the row scans
+   across as columns rather than as scattered fragments. */
+.pagehead__key {
+  font-size: 0.6875rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pagehead__value {
+  font-size: var(--step-0);
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Actions live in their own rail under the strip rather than as another cell:
+   they are verbs, not figures, and mixing them into the ruler made the tally
+   look like one more button. The rail carries no fill of its own -- tinted, a
+   1400px row with three small buttons at the end of it read as the empty box
+   this strip was built to remove. */
+.pagehead__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* Progress: a measurement, so tabular figures and a track instead of a badge,
+   and the track runs the width of its cell so the cell reads as a column. */
+.progress__value {
+  font-size: var(--step-4);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.progress__of {
+  font-size: 0.55em;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0;
+}
+
+.progress__track {
+  width: 100%;
+  height: 6px;
+  margin-top: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.progress__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--info);
+  /* scaleX rather than width: the fill animates on the compositor, so a
+     long tournament updating the meter never forces a layout pass. */
+  transform-origin: left center;
+  transition: transform 260ms var(--ease);
+}
+
+/* Finished is the one moment the bar may claim the live signal. */
+.progress--done .progress__fill {
+  background: var(--live);
+}
+.progress--done .progress__value {
+  color: var(--live);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress__fill {
+    transition: none;
+  }
+}
+
+/* --- panels: table sheets ------------------------------------------------- */
+
+.panel {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, #fff 4%), var(--surface));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.panel__title {
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  font-size: var(--step-0);
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.panel__body {
+  padding: var(--space-4);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.panel__body > h1,
+.panel__body > h2 {
+  margin-top: var(--space-3);
+}
+.panel__body > h1:first-child,
+.panel__body > h2:first-child {
+  margin-top: 0;
+}
+
+.panel__body--flush {
+  padding: 0;
+  gap: 0;
+}
+
+.panel__foot {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Every settings tab stacks its panels in a bare .stack, which has no gap of
+   its own -- without this the panels would touch. Dialogs are position: fixed,
+   so they stay out of flow and add no stray gap. */
+.settings-panels > .stack {
+  gap: var(--space-3);
+}
+
+.section {
+  border-bottom: 1px solid var(--line);
+}
+.section:last-child {
+  border-bottom: 0;
+}
+
+/* --- buttons: table switches ---------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  color: var(--text);
+  font-size: var(--step-0);
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 140ms var(--ease), background 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: color-mix(in srgb, var(--line-strong) 60%, var(--text-dim) 40%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn--primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 88%, #fff 12%), var(--brand));
+  border-color: color-mix(in srgb, var(--brand) 70%, #000 30%);
+  color: var(--brand-ink);
+}
+.btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 88%, #000 12%);
+  border-color: color-mix(in srgb, var(--brand) 60%, #000 40%);
+}
+.btn--danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line-strong));
+  color: var(--danger);
+  box-shadow: none;
+}
+.btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  box-shadow: none;
+}
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--line);
+  transform: none;
+}
+.btn--small {
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  font-size: var(--step--1);
+  border-radius: var(--radius-sm);
+}
+.btn--block {
+  width: 100%;
+}
+.btn--lg {
+  min-height: var(--touch);
+  font-size: var(--step-1);
+  border-radius: 12px;
+}
+
+/* Count carried inside a button label. The button carries a full aria-label
+   that already states the number, so this decorative repeat is hidden from
+   assistive tech rather than read out as a stray "3". */
+.btn__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  margin-left: var(--space-2);
+  padding: 0 0.45em;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 18%);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9em;
+}
+.btn--ghost .btn__count {
+  background: rgb(255 255 255 / 8%);
+}
+
+.btn-row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* --- status badges: mark + label, never hue alone -------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+}
+.badge--live {
+  color: var(--live);
+  border-color: color-mix(in srgb, var(--live) 50%, var(--line));
+  background: color-mix(in srgb, var(--live) 13%, var(--surface-2));
+}
+.badge--warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--line));
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+}
+.badge--info {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 50%, var(--line));
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
+.badge--danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.badge--accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.badge--done {
+  color: var(--text-faint);
+}
+
+.badge--live .badge__dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+}
+
+/* --- field card: one sheet per field --------------------------------------- */
+
+.field {
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 92%, #000 8%) 100%);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+
+.field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 2px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+
+.field__name {
+  font-size: var(--step-1);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.field__name::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent);
+  flex: none;
+}
+
+.field__meta {
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+}
+
+.field__body {
+  padding: var(--space-4);
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.field__empty {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 168px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text-faint);
+  font-size: var(--step-0);
+  text-align: center;
+  padding: var(--space-5) var(--space-4);
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+}
+
+/* --- scoreboard ------------------------------------------------------------- */
+
+.score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.score__side {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+  position: relative;
+  transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.score__side--leading {
+  border-color: color-mix(in srgb, var(--live) 55%, var(--line-strong));
+  background: color-mix(in srgb, var(--live) 10%, var(--surface-2));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 20px color-mix(in srgb, var(--live) 12%, transparent);
+}
+
+.score__side--a {
+  text-align: left;
+}
+.score__side--b {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.score__name {
+  font-size: var(--step-2);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.score__team {
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.score__points {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-weight: 800;
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--score-ink);
+}
+
+.score__mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  min-width: 96px;
+}
+
+.score__clock {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--step-3);
+  font-weight: 800;
+  letter-spacing: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 2px var(--space-3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.score__clock--over {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line-strong));
+}
+
+.score__sep {
+  font-size: var(--step-1);
+  color: var(--text-faint);
+  font-weight: 700;
+}
+
+.score__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.score__controls > * {
+  min-width: 0;
+}
+
+.score__controls > :first-child {
+  grid-column: 1;
+}
+
+.score__controls > :last-child {
+  grid-column: 3;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.score__controls > :last-child .btn-row {
+  justify-content: flex-end;
+}
+
+/* --- tables: scorebook sheets ------------------------------------------------ */
+
+.table {
+  width: 100%;
+  font-size: var(--step-0);
+}
+.table th {
+  text-align: left;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  font-weight: 750;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.table tbody tr {
+  transition: background 120ms var(--ease);
+}
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- match queue: start-list rail -------------------------------------------- */
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* The panel body is flush, so this inset is the air between the rows and the
+     panel border on the sides (and under the head). */
+  padding: var(--space-1);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.queue__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition: background 120ms var(--ease), border-color 120ms var(--ease);
+}
+/* The divider floats in the gap between two rows instead of sitting flush
+   under the upper one, so the line has air on both sides. */
+.queue__item::after {
+  content: '';
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(var(--space-1) / -2);
+  height: 1px;
+  background: var(--line);
+}
+.queue__item--ready {
+  background: color-mix(in srgb, var(--info) 8%, transparent);
+  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+}
+.queue__item--current {
+  background: color-mix(in srgb, var(--live) 10%, transparent);
+  border-color: color-mix(in srgb, var(--live) 40%, transparent);
+}
+
+.queue__index {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.queue__match {
+  min-width: 0;
+}
+
+.queue__players {
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+
+.queue__label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+  color: var(--text-faint);
+}
+
+.queue__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* Heading of the second half of a field's queue: the pairings either field may
+   host, listed under that field's own matches. */
+.list-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: 0;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px dashed var(--line-strong);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+
+/* --- forms ------------------------------------------------------------------- */
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+.field-row:first-child {
+  margin-top: 0;
+}
+
+.label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 750;
+  color: var(--text-dim);
+}
+
+.input,
+.select,
+.textarea {
+  min-height: 38px;
+  padding: 8px var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  width: 100%;
+  font-size: var(--step-0);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.textarea {
+  min-height: 120px;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  resize: vertical;
+  line-height: 1.5;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--info);
+  outline: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 3px color-mix(in srgb, var(--info) 22%, transparent);
+}
+.input--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.input--sm {
+  min-height: 30px;
+  padding: 4px var(--space-2);
+}
+
+.hint {
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  line-height: 1.5;
+  max-width: 70ch;
+}
+
+/* --- duration picker: preset chips plus minute/second steppers ---------- */
+.duration-presets {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.duration-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.duration-step__box {
+  width: 64px;
+  min-height: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  user-select: none;
+  min-height: var(--touch);
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.switch__track {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  position: relative;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease);
+  flex: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.switch__track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.3);
+  transition: transform 160ms var(--ease-snap), background 140ms var(--ease);
+}
+.switch input:checked + .switch__track {
+  background: var(--brand);
+  border-color: color-mix(in srgb, var(--brand) 60%, #000 40%);
+}
+.switch input:checked + .switch__track::after {
+  transform: translateX(18px);
+  background: #fff;
+}
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--info);
+  outline-offset: 3px;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  padding: 2px;
+  gap: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.segmented button {
+  padding: 7px var(--space-4);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--step-0);
+  font-weight: 650;
+  transition: background 120ms var(--ease), color 120ms var(--ease);
+}
+.segmented button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.segmented button[aria-pressed='true'] {
+  background: var(--brand);
+  color: var(--brand-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* --- modal --------------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 12, 0.66);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 100;
+}
+
+.modal {
+  width: min(580px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pop);
+}
+
+.modal--wide {
+  width: min(920px, 100%);
+}
+
+.modal__head {
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.modal__title {
+  margin-top: var(--space-2);
+  font-size: var(--step-2);
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+
+.modal__body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.modal__foot {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* --- full-screen tournament tree ------------------------------------------------ */
+
+/* The dashboard's tree, nothing else on top of it. Fixed to the viewport so it
+   fills the window even when the browser refuses the fullscreen request. */
+.tree-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* --- toasts --------------------------------------------------------------------- */
+
+.toasts {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: 120;
+  max-width: min(400px, calc(100vw - 2rem));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--step-0);
+}
+.toast--info {
+  border-color: color-mix(in srgb, var(--info) 45%, var(--line-strong));
+}
+.toast--warn {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line-strong));
+}
+.toast--error {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line-strong));
+}
+.toast--success {
+  border-color: color-mix(in srgb, var(--live) 45%, var(--line-strong));
+}
+.toast__close {
+  background: none;
+  border: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 6px;
+}
+.toast__close:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+/* --- misc ------------------------------------------------------------------------ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: var(--step-0);
+  box-shadow: var(--shadow-1);
+}
+.banner--warn {
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line-strong));
+  color: var(--text);
+}
+.banner--error {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line-strong));
+  color: var(--text);
+}
+.banner--info {
+  background: color-mix(in srgb, var(--info) 10%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--info) 45%, var(--line-strong));
+  color: var(--text);
+}
+/* A decided champion is a leading result, so it wears the live signal. */
+.banner--live {
+  background: color-mix(in srgb, var(--live) 12%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--live) 50%, var(--line-strong));
+  color: var(--text);
+}
+.banner--live strong {
+  color: var(--live);
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-1);
+}
+.statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--neutral);
+  flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--neutral) 16%, transparent);
+}
+.dot--live {
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 20%, transparent);
+}
+.dot--warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 20%, transparent);
+}
+.dot--error {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--step-0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--step-0);
+}
+.kv dt {
+  color: var(--text-faint);
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+  font-weight: 750;
+  padding-top: 3px;
+}
+.kv dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: #ffffff;
+  border-radius: var(--radius);
+  border: 2px solid var(--line-strong);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+  overflow: hidden;
+}
+.qr img {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  image-rendering: pixelated;
+}
+.qr__caption {
+  color: #101620;
+  font-size: var(--step--1);
+  font-weight: 700;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.qr--compact img {
+  max-width: 148px;
+}
+
+.url {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--step-0);
+  padding: 8px var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: space-between;
+  min-width: 0;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.url__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.url > .tiny {
+  flex: none;
+}
+/* CopyableUrl inside a flex row (e.g. "All addresses") shares the row instead
+   of forcing full width and crowding the label. */
+.between > .url {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* --- QR gallery: never crush tiles into each other ------------------------ */
+.qr-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+}
+/* Narrow sidebars get two roomy columns instead of three crushed ones. */
+.shell__side .qr-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* Every tile reserves the same head and description height, so all QR codes in
+   the grid start on the same line even when one tile carries a "Host only"
+   badge or a longer sentence. */
+.qr-tile {
+  min-width: 0;
+}
+.qr-tile > .qr {
+  flex: none;
+}
+.qr-tile > .hint {
+  flex: 1 1 auto;
+  min-height: 4.5em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qr-tile__head {
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 2.9em;
+}
+.qr-tile__head strong {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .qr-grid,
+  .shell__side .qr-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition: border-color 140ms var(--ease), background 140ms var(--ease), transform 140ms var(--ease);
+}
+.choice:hover {
+  border-color: var(--brand);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.choice__title {
+  margin-top: var(--space-2);
+  font-size: var(--step-1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.choice__text {
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  max-width: 68ch;
+}
+
+.steps {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.steps__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 750;
+}
+.steps__item--done {
+  color: var(--live);
+}
+.steps__item--active {
+  color: var(--text);
+}
+.steps__num {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  font-size: 0.625rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.scroll {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.compact-list {
+  display: flex;
+  flex-direction: column;
+}
+.compact-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--step-0);
+  min-width: 0;
+}
+.compact-list__row:last-child {
+  border-bottom: 0;
+}
+.compact-list__row--link {
+  cursor: pointer;
+}
+.compact-list__row--link:hover {
+  background: var(--surface-2);
+}
+
+/* --- radball 2er competition ------------------------------------------------- */
+
+/* Phase sections: groups side by side, wrapping to a column when narrow. */
+
+.rb-phase {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(30rem, 100%), 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.rb-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.rb-group__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Standings table: compact scorebook rows with qualification tinting. The
+   status column carries the meaning in words, so colour is never the only cue. */
+.rb-tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.rb-table {
+  min-width: 34rem;
+}
+.rb-table .rb-pts {
+  font-weight: 800;
+}
+.rb-row--qualified {
+  background: color-mix(in srgb, var(--ok, #2f9e63) 9%, transparent);
+  box-shadow: inset 3px 0 0 var(--ok, #2f9e63);
+}
+.rb-row--tied {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.rb-row--out {
+  opacity: 0.62;
+}
+.rb-status {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Fixture rows. */
+.rb-fixtures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Schedule list: the whole competition as one column, first fixture to last.
+   Rows carry a fixed score and state column so the columns line up down the
+   entire list. */
+.rb-schedule {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* On now: the field is occupied. Green, matching the live dot everywhere else.
+   With one list, the two marked rows are the only coloured ones, so they read
+   as the current state of the competition rather than as section headers. */
+.rb-schedule__row--live {
+  background: color-mix(in srgb, var(--live, var(--accent)) 7%, transparent);
+  box-shadow: inset 3px 0 0 var(--live, var(--accent));
+}
+
+/* The match to call: the one row on the page with a decision attached to it.
+   Carries the bar, the weight and the label, so the emphasis survives being
+   read in greyscale or by someone who cannot separate the hues. */
+.rb-schedule__row--call {
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--info);
+}
+.rb-schedule__row--call .rb-schedule__teams {
+  font-weight: 700;
+}
+
+.rb-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line-strong));
+  color: var(--warn);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  vertical-align: 1px;
+}
+.rb-tag--shootout {
+  border-color: color-mix(in srgb, var(--info) 55%, var(--line-strong));
+  color: var(--info);
+}
+/* "The match to call". Solid border and a filled background, so it is the one
+   label in a schedule row that reads without relying on hue. */
+.rb-tag--next {
+  border-color: var(--info);
+  background: color-mix(in srgb, var(--info) 16%, transparent);
+  color: var(--info);
+}
+
+.rb-win {
+  color: var(--ok, #2f9e63);
+}
+
+/* Results tab, games list.
+   The score lives inside the fixture cell rather than in a column of its own.
+   A results table stretched across a projector gives every pixel of slack to its
+   widest column, so a separate score column drifted half a screen away from the
+   two teams it belonged to and the row stopped reading as one line. Held
+   together in one cell it stays welded to its fixture at any width.
+
+   The fixture names get a minimum width so the scores still line up as a
+   column. Without it every score started wherever its own team names ended,
+   and a 4:4 two rows below a 1:0 read as belonging to a different match. A
+   minimum rather than a fixed width, so a long club name widens its own row
+   instead of being cut off mid-word. */
+.rb-games {
+  min-width: 40rem;
+}
+.rb-games th:first-child,
+.rb-games td:first-child {
+  width: 1%;
+}
+/*
+ * One line, always: crest, name, "vs", crest, name.
+ *
+ * This was an inline-block holding inline text, and adding a crest turned each
+ * side into an inline-flex box. An inline-flex box aligns to the baseline of its
+ * last line, which for an image is its bottom edge, so the "vs" and the team
+ * names ended up sitting on different baselines -- the separator drifted down
+ * beside the crest instead of between two names. A flex row with centred items
+ * has no baseline to negotiate.
+ */
+.rb-games__fixture {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 15rem;
+  vertical-align: middle;
+}
+
+.rb-games__vs {
+  flex: none;
+  color: var(--text-faint);
+}
+.rb-games__score {
+  display: inline-block;
+  min-width: 4.5rem;
+  vertical-align: middle;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+/* Decision match card: deliberately louder than a fixture row. */
+.rb-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line-strong));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 5%, var(--surface-2));
+}
+/* An open decision match expands into the fixture list, where it is the only
+   thing between two one-line rows. Break it out of the row rhythm so it reads
+   as a panel rather than as a tall row. */
+.rb-schedule > .rb-decision {
+  margin: var(--space-2) var(--space-3);
+}
+
+.rb-decision__title {
+  font-size: 1.1rem;
+}
+.rb-decision__score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-3);
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+/* Shootout board: visually distinct from any normal match scoreboard. */
+.rb-shootout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--info);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.rb-shootout--suddendeath {
+  border-left-color: var(--danger);
+}
+.rb-shootout__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rb-shootout__side {
+  display: grid;
+  grid-template-columns: minmax(8rem, 12rem) 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  transition: background 120ms var(--ease);
+}
+.rb-shootout__side--active {
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+.rb-shootout__team {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rb-shootout__dots {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.rb-dot {
+  width: 1.35rem;
+  text-align: center;
+}
+.rb-dot--hit {
+  color: var(--ok, #2f9e63);
+}
+.rb-dot--miss {
+  color: var(--text-dim);
+}
+.rb-dot--sd {
+  font-weight: 900;
+  text-decoration: underline;
+}
+.rb-dot--pending {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+.rb-shootout__tally {
+  font-weight: 800;
+}
+.rb-shootout__winner {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.rb-shootout__input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--line);
+}
+.push-right {
+  margin-left: auto;
+}
+
+.setup-page {
+  width: min(1120px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-bottom: var(--space-6);
+}
+
+.setup-page__head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.setup-page__head > .stack {
+  min-width: 0;
+}
+
+.setup-page__status {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  text-align: right;
+}
+
+.setup-page__status-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/*
+ * The one switch the whole page hangs on: build a new event, or open one that
+ * was filed earlier. Two buttons rather than a link or a card, because both are
+ * equally valid destinations and the host should be able to change their mind
+ * without losing the wizard either way.
+ */
+.setup-page__mode {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.setup-page__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.setup-page__mode-btn:hover {
+  color: var(--text);
+}
+
+.setup-page__mode-btn--on,
+.setup-page__mode-btn--on:hover {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.setup-page__mode-count {
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  font-weight: 650;
+}
+
+.setup-page__recovery,
+.setup-page__error {
+  border-radius: var(--radius);
+}
+
+/*
+ * The shelf of saved setups.
+ *
+ * Each card is one row: what the event is on the left, what it is made of in
+ * the middle line under it, and the actions on the right. The load list is read
+ * on a clipboard in a hall, so the name is the largest thing on the card and the
+ * counts are the second thing -- the actions are the only part that stays quiet
+ * until wanted.
+ */
+.setup-shelf .panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * One list, so there is a single shelf to look at. The shipped example keeps a
+ * dashed border because it cannot be renamed or removed -- it is app code, and
+ * the host owns every other row.
+ */
+.setup-shelf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.setup-shelf__card--example {
+  border-style: dashed;
+  border-color: var(--line-strong);
+}
+
+.setup-shelf__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-shelf__card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.setup-shelf__card--active {
+  border-color: var(--brand);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.setup-shelf__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.setup-shelf__name {
+  font-size: var(--step-1);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.setup-shelf__event {
+  overflow-wrap: anywhere;
+}
+
+.setup-shelf__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+
+.setup-shelf__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.setup-shelf__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  text-align: center;
+  align-items: center;
+}
+
+.setup-wizard {
+  overflow: visible;
+}
+
+.setup-wizard > .steps {
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.setup-wizard__body > .panel {
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.setup-wizard__body > .panel .panel__head {
+  padding: 0 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+.setup-wizard__body > .panel .panel__title {
+  margin: 0;
+}
+
+.setup-wizard__body > .panel .panel__body {
+  padding: 0;
+}
+
+.setup-wizard__body {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.34fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  padding: var(--space-5);
+  min-width: 0;
+}
+
+.setup-wizard__intro {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-right: 1px solid var(--line);
+}
+
+.setup-wizard__intro h2 {
+  font-size: var(--step-2);
+}
+
+.setup-question {
+  width: min(100%, 840px);
+}
+
+.setup-segmented {
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.setup-segmented button {
+  flex: 1 1 auto;
+  min-height: var(--touch);
+  white-space: normal;
+}
+
+.setup-callout,
+.setup-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+}
+
+.setup-callout span,
+.setup-summary span {
+  color: var(--text-dim);
+}
+
+.setup-roster {
+  min-height: 260px;
+}
+
+.setup-roster-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* A long list scrolls in place rather than growing the step: the roster panel
+   also holds the field tabs, the roster box and the summary, and a wall of
+   errors pushing all of that off the screen hides the thing the host has to
+   edit. The height is the count that fits a comfortable laptop screen. */
+.setup-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 30vh;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--line-strong));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--text);
+  font-size: var(--step--1);
+}
+
+/* A step's refusal, said once, in the place the host is already working in.
+   It is deliberately not a `.banner`: a banner is a full-width block with a
+   shadow that separates the host from the control it is about and pushes the
+   content below it down the panel. One red line under the control that lifts it
+   says the same thing and displaces nothing. */
+.setup-roster__error,
+.setup-schedule__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--step--1);
+  font-weight: 650;
+}
+
+/* An empty schedule is not an error -- it is where every host starts. A dashed
+   panel with the instruction in it reads as "nothing here yet"; a faint hint
+   reads as a step that is finished and simply has nothing to say. */
+.setup-schedule__empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  text-align: center;
+  font-size: var(--step--1);
+}
+
+/* The two team pickers, on one line, with the "vs" between them. This is the
+   whole of creating a match, so it gets the whole width of the card rather than
+   two stacked dropdowns the host has to scroll past. */
+.setup-schedule__pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.setup-schedule__vs {
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  font-weight: 650;
+  padding-bottom: 2px;
+}
+
+/* The quick-add strip: the same two pickers, plus the button that commits them. */
+.setup-schedule__add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  /* The same measure as the list below it, so the strip that adds a fixture
+     lines up with the fixtures it adds. */
+  max-width: 60rem;
+}
+
+.setup-schedule__add .setup-schedule__pair {
+  flex: 1 1 22rem;
+}
+
+/* Round and field are the two optional things a match carries, so they are one
+   disclosure away rather than four controls standing between the host and the
+   pickers. */
+.setup-schedule__details {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+  font-size: var(--step--1);
+}
+
+.setup-schedule__details > summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-weight: 650;
+}
+
+.setup-schedule__details > * + * {
+  margin-top: var(--space-2);
+}
+
+.setup-page__examples {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.setup-draw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.setup-draw-match {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.setup-draw-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* A schedule is a list, not a grid. Two cards side by side reads as two
+   independent things; one per row, numbered, reads as the order they will be
+   played in -- which is what the ↑ ↓ buttons are for. */
+.setup-schedule .setup-draw-grid {
+  grid-template-columns: 1fr;
+  max-width: 60rem;
+}
+
+/* One fixture: the number, the pairing, and the controls to move or drop it, on
+   one line. The pickers take everything left over, so a full-width row shows
+   both teams without truncating either. */
+.setup-schedule .setup-schedule__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.setup-schedule .setup-schedule__row > .setup-schedule__details,
+.setup-schedule .setup-schedule__row > .setup-schedule__error {
+  grid-column: 1 / -1;
+}
+
+.setup-schedule .setup-schedule__num {
+  min-width: 2.5rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .setup-schedule .setup-schedule__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+}
+
+.setup-review {
+  align-items: start;
+}
+
+.setup-roster-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.setup-roster-details details {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
+.setup-roster-details summary {
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.setup-roster-details ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-left: var(--space-5);
+  color: var(--text-dim);
+}
+
+.setup-wizard__nav {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+  /* The wizard panel is overflow: visible (the step intro is sticky), so the
+     nav has to round its own bottom corners to sit inside the panel's. */
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-2) 96%, transparent);
+}
+
+.setup-page .btn {
+  height: auto;
+  min-height: var(--touch);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  white-space: normal;
+  text-align: center;
+}
+
+.setup-page .field-tabs__tab {
+  min-height: var(--touch);
+}
+
+.setup-page .field-tabs__name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.setup-page .steps {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+
+.setup-page .steps__item {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: var(--step--1);
+  font-weight: 650;
+}
+
+/* The error line is always in the DOM so screen readers announce it, but it
+   only takes up room once there is something to say. */
+.field-error:empty {
+  display: none;
+}
+
+.input--invalid,
+.input--invalid:focus,
+.select--invalid,
+.select--invalid:focus,
+.textarea--invalid,
+.textarea--invalid:focus {
+  border-color: var(--danger);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    overflow: hidden;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+    max-width: 42vw;
+  }
+
+  .brand__text,
+  .topbar__spacer,
+  .topbar > .row:last-child {
+    display: none;
+  }
+
+  .nav {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .setup-page__head,
+  .setup-wizard__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .setup-page__head {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+.setup-page__status {
+    text-align: left;
+    align-items: stretch;
+  }
+
+  .setup-page__status-row {
+    justify-content: flex-start;
+  }
+
+  .setup-page__mode {
+    width: 100%;
+  }
+
+  .setup-page__mode-btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .setup-shelf__card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .setup-shelf__actions {
+    justify-content: flex-end;
+  }
+
+  /*
+   * A banner whose actions are full-width buttons stacks instead of squeezing
+   * them into a column beside the text. "Back to saved setups" / "Start empty
+   * instead" next to a paragraph left two 90px-wide slivers on a phone.
+   */
+  .setup-page__recovery {
+    flex-wrap: wrap;
+  }
+
+  .setup-page__recovery > .btn {
+    flex: 1 1 12rem;
+  }
+
+  .setup-wizard__intro {
+    position: static;
+    padding: 0 0 var(--space-3);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .setup-wizard__body {
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .setup-wizard__nav {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+@media (max-width: 520px) {
+  .setup-wizard__nav {
+    flex-wrap: wrap;
+  }
+
+  .setup-wizard__nav .btn {
+    flex: 1 1 10rem;
+  }
+
+  .setup-review {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .setup-review dt {
+    padding-top: var(--space-3);
+  }
+
+  .setup-review dd + dt {
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* --- 10-team radball tournament tree ------------------------------------------- */
+
+/*
+ * The tree is not a bracket and does not pretend to be one. Two group tables sit
+ * side by side -- Group A pinned to field 1, Group B to field 2 -- and the final
+ * phase hangs below them as seven rows. Cards are sized by their content, never
+ * by the absolute poster coordinates a knockout needs, because this shape reflows
+ * rather than scales.
+ */
+
+/*
+ * A column, so the tree fills the panel it is given. It used to inherit the
+ * bracket's row flex and shrink to whatever its content happened to measure --
+ * which meant the group tables were laid out in ~490px whatever the panel width,
+ * and only looked full-bleed when the final phase had enough cards to push it.
+ */
+.bracket--ten {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible;
+  min-height: 0;
+}
+
+.rbt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+/*
+ * The position-to-match wires, drawn over the tree.
+ *
+ * An overlay rather than a grid column because the lines have to travel: A1 feeds
+ * a semifinal two thirds of the way down the ladder while A5 feeds the row at the
+ * top, so no layout can reserve space for them. `pointer-events: none` because
+ * the wires are a reading aid and must never intercept a click on a row.
+ */
+.rbt__wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/*
+ * The wires sit *behind* both panels. A wire is a connector between cards, so
+ * any part of it that strayed over a card would be drawn on top of that card's
+ * border and read as though it had drilled into the card. Behind them, the
+ * panels clip it and the geometry cannot be seen to be wrong.
+ */
+.rbt__section--groups,
+.rbt__section--final {
+  position: relative;
+  z-index: 1;
+}
+
+.rbt__wire {
+  fill: none;
+  /* Faint, because ten of these cross in the gutter and a strong stroke turns
+     the fan into a knot that hides the ladder behind it -- but no longer so faint
+     that they vanish. With the dashed connector gone these wires are the only
+     thing saying which group position feeds which match, so they carry a little
+     more of the load than they used to. */
+  stroke: color-mix(in srgb, var(--line-strong) 82%, transparent);
+  /* Dashed because this is a dependency, not a played result: nothing has
+     travelled along it until both groups are complete. */
+  stroke-dasharray: 3 4;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+@media (max-width: 1180px) {
+  /* Stacked, a position and its match are in the same column, so a wire would
+     run down the page through unrelated rows and cross every other wire. The
+     dependency is carried instead by each ladder row naming what it is waiting
+     on, which reads in the same column the wire would have cluttered. */
+  .rbt__wires {
+    display: none;
+  }
+}
+
+.rbt__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/*
+ * The two rounds side by side.
+ *
+ * The group column is capped rather than flexible: two stacked group cards and a
+ * seven-row ladder do not want equal halves, and the ladder is what a host reads
+ * once the round is over. Below 1180px the whole thing stacks, because a
+ * dependency that has to bend is no longer telling the truth about the flow.
+ *
+ * The column gap is not decoration: it is the only place the position wires are
+ * visible. They are painted *behind* both panels and both have an opaque
+ * background, so everything between gate and landing edge is exactly this gap. At
+ * the old `--space-4` the wire's two 10px end stubs overlapped and the line
+ * collapsed into a 4px squiggle against the panel edge. Wide enough for the
+ * elbows to read as two, the wires are the clearest statement of which group
+ * position feeds which match.
+ */
+.rbt__flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 1fr);
+  /* `center`, not `stretch`: stretching made the seven-row final ladder match the
+     two stacked group cards' height and left it carrying ~300px of empty panel.
+     Centring instead hangs the ladder off the vertical midpoint of the group
+     column, so a seven-row result ladder sits level with the middle of the five
+     squads above it rather than clinging to the top of a much taller neighbour.
+     The group column is the tallest item, so centring leaves it exactly where it
+     was. Nothing here moves the wires: they are measured from the panel's own
+     edge and from each row's own box, so they follow the ladder down. */
+  align-items: center;
+  gap: 0 4.5rem;
+}
+
+.rbt__section--groups,
+.rbt__section--final {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+@media (max-width: 1180px) {
+  .rbt__flow {
+    grid-template-columns: minmax(0, 1fr);
+    /* The connector used to sit between the two panels and supply the vertical
+       gap. With it gone the row gap has to come from the grid, or the panels
+       touch. */
+    gap: var(--space-4);
+  }
+}
+
+.rbt__section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.rbt__section-title {
+  margin: 0;
+  font-size: var(--step-0);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* "0 of 20 played" and a track, so how far along the round is one glance instead
+   of two badges and a subtraction. A count, not a state, so it is the same
+   progressbar treatment the page header uses. */
+.rbt__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rbt__progress-label {
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.rbt__progress-track {
+  width: 6rem;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.rbt__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transform-origin: left center;
+}
+
+/*
+ * One playing field per row, stacked.
+ *
+ * Side by side, the two tables had to share the width of the panel, so each name
+ * column was squeezed to a column of initials and the eye had to jump left-right
+ * to compare the two groups. Stacked, each card gets the panel's full width and
+ * the two groups read down the page in the order the fixtures are played.
+ *
+ * A single `1fr` column rather than `auto-fit`: the tracks are the group cards,
+ * and there is only ever one per row now.
+ */
+.rbt__groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-content: start;
+}
+
+/*
+ * One playing field's fixture list.
+ *
+ * Each row is round / matchup / status in three fixed columns, so twenty fixtures
+ * read as a schedule rather than as a wall. The score column is always present and
+ * always in the same place -- a dash when there is nothing to report -- which is
+ * what lets the eye track results straight down instead of looking for where the
+ * numbers appear.
+ */
+.rbt__card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rbt__card--complete {
+  border-color: var(--line-strong);
+}
+
+.rbt__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.rbt__card-title {
+  font-weight: 700;
+}
+
+/*
+ * The ring a group plays on.
+ *
+ * A label, not loose dim text: "Group A" and its field are one identity, and a
+ * volunteer is sent to the ring by name, so both halves carry label weight. Set
+ * uppercase and tracked to match every other zone label in the app, which also
+ * separates it from the squad names in the table below at a glance.
+ */
+.rbt__card-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/*
+ * The Now / Next block at the foot of a field card.
+ *
+ * Two lines, and nothing else. This is the part a volunteer reads mid-event, so it
+ * sits directly under the standings that explain why those two squads matter, and
+ * carries the live signal on its own -- the match in hand is bold with a live-tinted
+ * edge, the one after it is plain. No badge per fixture, because a card with twenty
+ * pills is twenty things shouting and the one that matters is still hard to find.
+ */
+.rbt__now {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: auto;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.rbt__now-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  /* A UI row, not a reading passage.
+   *
+   * The global `p { max-width: 70ch }` measure cap (tokens.css) applies to this
+   * element, because a row of "Now / Team B v Team E" is marked up as a
+   * paragraph. That resolved to 483px inside a 553px card, so the live well
+   * stopped about 70px short of the card edge and read as an unfinished fill --
+   * and no amount of `align-self: stretch` could beat a max-width, which is why
+   * this looked like a flex bug and was not one. */
+  max-width: none;
+  align-self: stretch;
+  margin: 0;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--step--1);
+  min-width: 0;
+}
+
+.rbt__now-row > .grow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The live edge is 1px, not 3px: DESIGN.md allows no edge-only accent bar above
+   that, and it does not need one -- the live-tinted well, the bold squads and the
+   word "Now" already say this match is in hand. */
+.rbt__now-row--live {
+  background: color-mix(in srgb, var(--live) 12%, var(--surface-2));
+  border-left: 1px solid var(--live);
+  font-weight: 700;
+}
+
+.rbt__now-row--idle {
+  padding-left: 0.35rem;
+  border-left: 1px solid transparent;
+}
+
+/* A fixed key column, so "Now" and "Next" line up and the eye reads the matches
+   rather than the labels.
+
+   The plain key is `--text-dim`: `--text-faint` measured under 4.5:1 in the light
+   theme, and the two keys are read as a pair, so they should not differ in weight
+   of ink as well as in colour. */
+.rbt__now-key {
+  flex: none;
+  width: 2.4rem;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The live key steps up to full ink rather than turning green.
+ *
+ * Green text on the green-tinted well measured 4.19:1 in the light theme --
+ * under the floor, and unavoidable: any green light enough to sit on a pale
+ * green fill is too light to read on it. So the mark stays green (the well, the
+ * 1px edge, the bold squads) and the label takes readable ink, which is the
+ * Mark-Plus-Label rule read literally: a mark paired with a label, not a
+ * coloured word doing both jobs. */
+.rbt__now-row--live .rbt__now-key {
+  color: var(--text);
+}
+
+/*
+ * The standings inside a field card: five rows, four columns.
+ *
+ * `table-layout: fixed`, with the column widths declared on the header row. On
+ * auto layout the two numeric columns took 204px between them -- more than the
+ * squad name was given -- and neither carried a label, so the only thing a
+ * spectator could read off them was two unlabelled zeros. Fixed layout makes the
+ * name column take everything that is left, which is the one column that has to
+ * be readable from the back of a hall.
+ *
+ * Every `th` is restyled: `.table th` is a sticky surface-2 header bar built for
+ * a full-width scorebook sheet, and none of that belongs inside a five-row card.
+ */
+.rbt__standing-table {
+  table-layout: fixed;
+  font-size: 0.82rem;
+}
+
+.rbt__standing-table thead th:nth-child(1) {
+  width: 2.6rem;
+}
+
+.rbt__standing-table thead th:nth-child(2) {
+  width: auto;
+}
+
+.rbt__standing-table thead th:nth-child(3),
+.rbt__standing-table thead th:nth-child(4) {
+  width: 3rem;
+}
+
+.rbt__standing-table th {
+  position: static;
+  background: none;
+  padding: 0;
+  border-bottom: 0;
+  /* The app's label size. There is no --step--2, so a "smaller" step here would
+     be a new size invented for one component rather than a rung on the ramp. */
+  font-size: 0.6875rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* The header row is the only thing naming the two figures. It is a label strip,
+   not a bar: a rule under it would double the border the first body row already
+   draws. */
+.rbt__standing-table thead th {
+  padding-bottom: 0.4rem;
+}
+
+.rbt__standing-table td {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+
+/* The squad is the row's own header, so it reads as row content: the label
+   treatment above stops at the header row. Names wrap rather than truncate --
+   `.crest-name__text` breaks anywhere -- because a squad called "TuS Jade
+   Oberhausen 04" cut mid-word tells a volunteer less than one wrapped over two
+   lines. */
+.rbt__standing-table tbody th.rbt__team {
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+  text-align: left;
+  padding-left: var(--space-2);
+  /* The same rule the `td`s draw. Without it the row border stops at the name and
+     restarts under the two figures, which reads as a stray fragment rather than
+     as one row. */
+  border-bottom: 1px solid var(--line);
+}
+
+/* Right-aligned figures, tight against the edge they are read down. */
+.rbt__standing-table .rbt__num {
+  text-align: right;
+}
+
+/* The A1..A5 label. Solid, not a tint: it is the single thing a volunteer looks
+   for when they are told "Group A, second place, step on". Its background and
+   border live on the cell, which is why the column above is sized rather than
+   left to auto layout: on a `width: 100%` table the cell absorbed 128px of the
+   row and painted a slab across a two-character label.
+
+   The ink is `--text`, not `--brand-ink`. `--brand-ink` is white ink meant to sit
+   on the brand colour, and it does not change between themes -- on a light
+   `--surface-3` it measured 1.23:1, i.e. an unreadable tag. */
+.rbt__pos {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3rem;
+  white-space: nowrap;
+}
+
+/* The two squads that go through: their points figure, in live green.
+ *
+ * DESIGN.md's Two-Signal Rule puts "running or leading" on live green, which is
+ * exactly what the top two of a group are, and unlike `--brand-ink` the light
+ * theme's live green is dark enough to read: the old brand-ink here was white on
+ * white, 1:1, so the two figures that decide the final phase were the two you
+ * could not see. */
+.rbt__row--semifinalist .rbt__pts {
+  color: var(--live);
+  font-weight: 700;
+}
+
+.rbt__pts {
+  font-weight: 700;
+}
+/*
+ * The final phase: seven rows of one shape.
+ *
+ * The leading label is what the match decides, in an aligned fixed column, so the
+ * eye reads the whole ladder down one strip. The status column is empty until it
+ * has something to say -- no placeholder, no empty box.
+ */
+.rbt__ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.rbt__row {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.rbt__row:first-child {
+  border-top: 0;
+}
+
+/* A decided match recedes; the winner is already in the ranking list below. */
+.rbt__row--done {
+  opacity: 0.7;
+}
+
+.rbt__row-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.rbt__row--decided .rbt__row-label {
+  color: var(--text-faint);
+}
+
+.rbt__row-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  /* A matchup is one object. Letting the two sides stretch to the edges of a wide
+     panel tore them apart and made each row read as two unrelated names, so the
+     pair stays compact and the status column takes the slack. */
+  max-width: 26rem;
+}
+
+.rbt__side {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rbt__side--winner {
+  font-weight: 700;
+  color: var(--live);
+}
+
+.rbt__side--winner::after {
+  content: ' ✓';
+  color: var(--live);
+}
+
+/* Score centred between the two sides. A middot while there is nothing to score
+   keeps the column from jittering as results land. */
+.rbt__row-score {
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.rbt__row-status {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rbt__row-blocked {
+  color: var(--warn);
+}
+
+/* The state machine as a trail. Reached steps are solid; unreached are ghosted,
+   so "how far along are we" is one glance rather than a sentence. */
+.rbt10-trail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rbt10-trail__step {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.rbt10-trail__step--reached {
+  border-color: var(--line-strong);
+  color: var(--text-dim);
+}
+
+.rbt10-trail__step--current {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 700;
+}
+
+.rbt10-issues {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  /* The status cell moves under the sides rather than squeezing them: a team name
+     is worth more than the field it is on. */
+  .rbt__row {
+    grid-template-columns: 3.4rem minmax(0, 1fr);
+  }
+
+  .rbt__row-status {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .rbt__progress-track {
+    width: 4rem;
+  }
+}
+
+/* --- 10-team groups in tournament setup --------------------------------------- */
+
+/*
+ * Two columns, one per group, read-only: the group a team plays in is the field
+ * it was registered on, so there is nothing here to arrange. The columns exist to
+ * show the host, on the rules step, exactly which squad landed in A and which in
+ * B before anything is created.
+ */
+.wc-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wc-groups__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.wc-groups__col {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-3);
+}
+
+.wc-groups__col-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.wc-groups__col-title {
+  font-weight: 700;
+}
+
+.wc-groups__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.wc-groups__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-2);
+}
+
+.wc-groups__pos {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--brand-ink);
+  width: 1.6rem;
+}
+
+.wc-groups__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- team library ------------------------------------------------------------ */
+
+/* Age-group rail: the sorting axis, styled as a nav well like the topbar rail. */
+.age-tab {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.age-tab__count {
+  font-size: var(--step--1);
+  color: var(--text-faint);
+}
+
+.age-tab--active {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.age-tab--active .age-tab__count {
+  color: var(--text-dim);
+}
+
+/* Add form: one dense row of fields that wraps instead of stacking. It sits in
+   its own well so it never reads as a second table header. */
+.team-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0 var(--space-3);
+  align-items: end;
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/*
+ * The logo picker is the one field that is not a single input, so it opts out of
+ * the equal-width column grid and takes the full row. Left in the grid it was
+ * stretched into one 170px column and the crest tiles were clipped to a sliver.
+ */
+.team-form > .logo-picker {
+  grid-column: 1 / -1;
+}
+
+.team-form .field-row {
+  margin-top: 0;
+}
+
+/* The row is bottom-aligned, so any cell that grows would drag its siblings
+   upward. Hold one error line open per field and the inputs never jump. */
+.team-form .field-error:empty {
+  display: block;
+  min-height: calc(var(--step--1) * 1.45);
+}
+
+.team-form__action {
+  justify-content: flex-end;
+}
+
+/* Same reserved line, so the submit button keeps sitting on the input row
+   instead of trailing below it. */
+.team-form__action::after {
+  content: '';
+  display: block;
+  min-height: calc(var(--step--1) * 1.45);
+}
+
+.team-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.team-table th,
+.team-table td {
+  white-space: nowrap;
+}
+
+/* A row header, not a column header: keep it in sentence case, unstick it and
+   drop the header fill so the team name reads as a name, not a label.
+   Two classes to outrank `.table th`. */
+.table th.team-table__name {
+  position: static;
+  z-index: auto;
+  background: transparent;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--step-0);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+  text-align: left;
+}
+
+.team-table__age {
+  width: 1%;
+}
+
+.team-table .select--sm {
+  min-height: 32px;
+  padding: 4px var(--space-2);
+  font-size: var(--step--1);
+  width: auto;
+}
+
+@media (max-width: 720px) {
+  .team-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- team library picker inside tournament setup ----------------------------- */
+
+.library-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-1);
+}
+
+/* The list scrolls, so say so: a fade at the bottom edge of the list rather
+   than a squad sliced in half with nothing to explain it. */
+.library-picker__scroll {
+  position: relative;
+  min-height: 0;
+}
+
+.library-picker__scroll::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--space-5);
+  background: linear-gradient(to top, var(--surface-2) 20%, transparent);
+  pointer-events: none;
+}
+
+.library-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: var(--space-1);
+}
+
+.library-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.library-pick:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+
+.library-pick--on {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+}
+
+.library-pick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+  flex: none;
+}
+
+.library-pick__players {
+  display: block;
+  color: var(--text-dim);
+  font-size: var(--step--1);
+}
+
+.library-pick--dup {
+  opacity: 0.72;
+}
+
+/* ==========================================================================
+   Team crests
+   A square mark beside a name, and the grid a host picks one from. Crests come
+   from the host's own folder and vary in shape, so every one of them is
+   contained in a square and centred rather than trusted to be square itself.
+   ========================================================================== */
+
+.crest {
+  display: block;
+  flex: none;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  /* A crest with no padding of its own sits flush against its box; a transparent
+     PNG then reads as a floating shape, so the sheet colour shows through. */
+  padding: 1px;
+}
+
+.crest--xs {
+  width: 18px;
+  height: 18px;
+}
+
+.crest--sm {
+  width: 26px;
+  height: 26px;
+}
+
+.crest--md {
+  width: 38px;
+  height: 38px;
+}
+
+.crest--lg {
+  width: 64px;
+  height: 64px;
+}
+
+.crest--xl {
+  width: clamp(52px, 7vw, 104px);
+  height: clamp(52px, 7vw, 104px);
+}
+
+/* Crest and name as one unit, so a long name wraps under its own mark rather
+   than pushing the mark to the far end of the row. */
+.crest-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.crest-name__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- the picker ----------------------------------------------------------- */
+
+.logo-picker {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.logo-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-2);
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.logo-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.logo-tile:hover {
+  border-color: var(--line-strong);
+}
+
+.logo-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.logo-tile--on {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+}
+
+.logo-tile img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.logo-tile__none {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: var(--step--2);
+  text-transform: uppercase;
+}
+
+.logo-tile__name {
+  width: 100%;
+  color: var(--text-dim);
+  font-size: var(--step--2);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint--warn {
+  color: var(--warn);
+}

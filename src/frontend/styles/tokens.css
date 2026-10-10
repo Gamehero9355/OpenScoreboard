@@ -1,0 +1,333 @@
+/* ==========================================================================
+   Design tokens — Scorer's Table
+   A volunteer at the scorer's table in a dim sports hall, laptop under gym
+   lights, projector on the far wall, phones in referees' hands. Dark slate
+   first (never pure black), paper-white ink, signal colors that survive
+   2m–10m distance. Offline: system faces only, no webfonts.
+   ========================================================================== */
+
+:root {
+  --font-ui: system-ui, 'Segoe UI Variable Text', 'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-num: system-ui, 'Segoe UI Variable Display', 'Segoe UI', -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, ui-monospace, SFMono-Regular, monospace;
+
+  --step--1: 0.75rem;
+  --step-0: 0.875rem;
+  --step-1: 1rem;
+  --step-2: 1.25rem;
+  --step-3: 1.5rem;
+  --step-4: 2rem;
+  --step-5: 2.75rem;
+  --step-6: 4rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --border: 1px solid var(--line);
+
+  --topbar-h: 60px;
+  --touch: 44px;
+  --touch-lg: 60px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+/* --- dark (default): scorer's table under hall lights -------------------- */
+:root,
+[data-theme='dark'] {
+  --bg: #0e1216;
+  --bg-elevated: #141b22;
+  --surface: #172027;
+  --surface-2: #1d2832;
+  --surface-3: #26313f;
+  --line: #2b3644;
+  --line-strong: #566b83;
+
+  --text: #f2f5f8;
+  --text-dim: #a9b4c4;
+  --text-faint: #8d99ac;
+
+  --live: #3ddc84;
+  --warn: #f5b83d;
+  --info: #62b2ff;
+  --danger: #ff7070;
+  --neutral: #8d99ac;
+
+  --brand: #2f6fe4;
+  --brand-ink: #ffffff;
+  --accent: #f5b83d;
+
+  --score-ink: #ffffff;
+  --court: #e8edf3;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-pop: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.35);
+  --scroll-thumb: #39465a;
+  color-scheme: dark;
+}
+
+/* --- light: paper scorebook ---------------------------------------------- */
+[data-theme='light'] {
+  --bg: #edf0f4;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f2f5f8;
+  --surface-3: #e2e8f0;
+  --line: #d3dbe4;
+  --line-strong: #8292a6;
+
+  --text: #0f1620;
+  --text-dim: #4c5a6d;
+  --text-faint: #66758a;
+
+  --live: #0e7a48;
+  --warn: #8a5600;
+  --info: #0b63ce;
+  --danger: #b42323;
+  --neutral: #66758a;
+
+  --brand: #1f5fd0;
+  --brand-ink: #ffffff;
+  --accent: #8a5600;
+
+  --score-ink: #0b0f16;
+  --court: #16202c;
+  --shadow-1: 0 1px 2px rgba(16, 22, 32, 0.08), 0 8px 24px rgba(16, 22, 32, 0.08);
+  --shadow-pop: 0 2px 6px rgba(16, 22, 32, 0.12), 0 16px 36px rgba(16, 22, 32, 0.14);
+  --scroll-thumb: #b9c4d2;
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   Reset
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  background-image: radial-gradient(1200px 500px at 50% -10%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 70%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--step-0);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+  caret-color: var(--brand);
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+dl,
+dd {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+p {
+  max-width: 70ch;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+a:hover {
+  text-decoration-color: currentColor;
+}
+.nav__item,
+.brand,
+.btn,
+.compact-list__row--link {
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+svg {
+  display: block;
+  flex: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 32%, transparent);
+  color: var(--text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid var(--bg);
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  align-items: center;
+}
+.between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.wrap {
+  flex-wrap: wrap;
+}
+.g1 {
+  gap: var(--space-1);
+}
+.g2 {
+  gap: var(--space-2);
+}
+.g3 {
+  gap: var(--space-3);
+}
+.g4 {
+  gap: var(--space-4);
+}
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.center {
+  text-align: center;
+}
+.right {
+  text-align: right;
+}
+.nowrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+.tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+.dim {
+  color: var(--text-dim);
+}
+.faint {
+  color: var(--text-faint);
+}
+.tiny {
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.small {
+  font-size: var(--step--1);
+}
+.hidden {
+  display: none !important;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

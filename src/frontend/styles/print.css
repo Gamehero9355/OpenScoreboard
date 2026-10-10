@@ -1,0 +1,218 @@
+/* ==========================================================================
+   Print / PDF export
+   "Export PDF" opens the browser print dialog on a purpose-built page: no
+   server-side PDF library, no external service, works offline.
+   ========================================================================== */
+
+@media print {
+  :root {
+    --bg: #ffffff;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f4f6f8;
+    --surface-3: #e9edf3;
+    --line: #c3cbd5;
+    --line-strong: #9aa5b3;
+    --text: #10161f;
+    --text-dim: #4b5563;
+    --text-faint: #6b7280;
+    --live: #0b7a48;
+    --info: #10457f;
+    --danger: #a51c1c;
+    --warn: #8a5600;
+    --score-ink: #000000;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .topbar,
+  .toasts,
+  .statusbar,
+  .no-print,
+  .bracket__legend {
+    display: none !important;
+  }
+
+  .shell,
+  .shell__main,
+  .shell__side,
+  .fields,
+  .panel,
+  .page,
+  .app {
+    display: block !important;
+    background: #fff !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .panel {
+    break-inside: avoid;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+
+  .table th {
+    background: #fff !important;
+    position: static;
+  }
+
+  .bracket {
+    overflow: visible !important;
+    height: auto !important;
+    background: #fff !important;
+  }
+
+  .bracket__fit {
+    width: auto !important;
+    height: auto !important;
+  }
+
+  .bracket__poster {
+    position: static !important;
+    transform: none !important;
+  }
+
+  .bracket__wires {
+    display: none !important;
+  }
+
+  /* Absolute placement is what makes the poster fit its frame, and it is
+     meaningless on paper, so every positioned child drops back into flow and
+     prints in reading order: phases, then the groups inside them, then the
+     qualification each group produced. */
+  .band,
+  .bracket__node,
+  .lane,
+  .lane__tick,
+  .out,
+  .ghost,
+  .crown {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    height: auto !important;
+    margin-bottom: 8px;
+  }
+
+  .bracket__node .bm {
+    height: auto !important;
+  }
+
+  .lane {
+    break-inside: avoid;
+    padding: 0 0 6px;
+  }
+
+  .lane__head {
+    height: auto;
+  }
+
+  /* A tick without its row beside it is just a floating word, so on paper the
+     round name goes back above the fixtures it labels. */
+  .lane__tick {
+    display: block;
+    width: auto;
+    margin-top: 8px;
+    color: var(--text-dim) !important;
+    -webkit-line-clamp: none;
+  }
+
+  .out,
+  .ghost,
+  .crown {
+    border-style: solid !important;
+    box-shadow: none !important;
+  }
+
+  .bm {
+    break-inside: avoid;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}
+
+/* The printable report page itself */
+.report {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.report__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: var(--space-3);
+}
+
+.report__title {
+  font-size: var(--step-4);
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.report__meta {
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  text-align: right;
+}
+
+.report__podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.podium {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface);
+}
+.podium--1 {
+  border-color: var(--accent);
+}
+.podium--2,
+.podium--3 {
+  border-style: dashed;
+}
+
+.podium__place {
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.podium__name {
+  font-size: var(--step-2);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}

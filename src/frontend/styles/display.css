@@ -1,0 +1,1378 @@
+/* ==========================================================================
+   Spectator / projector display — flip-score sheets
+   Read from ten metres across a sports hall. Oversized tabular numerals,
+   court-line headers, state as mark + label. No controls, no scrolling.
+   ========================================================================== */
+
+.disp {
+  min-height: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  background-image: radial-gradient(1000px 420px at 50% -8%, color-mix(in srgb, var(--brand) 8%, transparent), transparent 70%);
+  background-attachment: fixed;
+  overflow: hidden;
+}
+
+.disp--invert {
+  background: #f7f8fa;
+  background-image: radial-gradient(1000px 420px at 50% -8%, rgba(11, 99, 206, 0.08), transparent 70%);
+  color: #08090b;
+  --bg: #f7f8fa;
+  --bg-elevated: #ffffff;
+  --text: #08090b;
+  --text-dim: #3d4653;
+  --text-faint: #5d6878;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --surface-3: #dde3ea;
+  --line: #c8cfd8;
+  --line-strong: #9fabbe;
+  --score-ink: #08090b;
+  --live: #0b7a48;
+  --warn: #8a5600;
+  --danger: #b91c1c;
+}
+
+.disp__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) clamp(var(--space-4), 3vw, var(--space-6));
+  border-bottom: 2px solid var(--line-strong);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.disp__title {
+  font-size: clamp(1rem, 2.2vw, 1.6rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.disp__title::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--live);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--live) 20%, transparent);
+  flex: none;
+}
+
+.disp__hint {
+  font-size: clamp(0.75rem, 1.2vw, 1rem);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.disp__grid {
+  flex: 1 1 auto;
+  display: grid;
+  min-height: 0;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: transparent;
+}
+
+.disp__grid--single {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.disp__grid--two {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.disp__grid--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.disp__grid--many {
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .disp__grid--split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.disp-board {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, #fff 4%), var(--surface));
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  padding: clamp(var(--space-4), 1.8vw, var(--space-6));
+  gap: clamp(var(--space-3), 1.2vw, var(--space-5));
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.disp-board__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: clamp(var(--space-2), 0.8vw, var(--space-4));
+  /* One line, always. At 1280x720 two boards share the width, and a header that
+     wraps its own field name pushed the board body down by a whole line while
+     the round name broke mid-phrase. */
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.disp-board__field {
+  flex: none;
+  white-space: nowrap;
+  font-size: clamp(1.1rem, 2.6vw, 2.2rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.disp-board__meta {
+  display: flex;
+  align-items: center;
+  gap: clamp(var(--space-2), 1.2vw, var(--space-4));
+  min-width: 0;
+  font-size: clamp(0.7rem, 1.3vw, 1.1rem);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* The round name is the one elastic part of the header: it truncates rather
+   than reflowing, because a two-line "QUARTERFINALS / MATCH 3" is read as two
+   separate facts by anyone standing at the back of a hall. */
+.disp-board__round {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The board header carries no controls any more -- they all live in the footer,
+   where a fixed corner button could not land on top of them. */
+.disp-tool {
+  min-width: var(--touch);
+  min-height: var(--touch);
+}
+
+.disp--single {
+  width: 100%;
+  max-width: 100vw;
+}
+
+.disp--single .disp__grid {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: clamp(var(--space-3), 1.2vw, var(--space-5));
+}
+
+.disp--single .disp-board {
+  width: 100%;
+  min-width: 0;
+  border-width: 2px;
+  padding: clamp(var(--space-3), 1.4vw, var(--space-5));
+  gap: clamp(var(--space-3), 1vw, var(--space-4));
+}
+
+.disp--single .disp-board__head,
+.disp--single .disp-board__head > *,
+.disp--single .disp-board__meta,
+.arena__identity {
+  min-width: 0;
+}
+
+.arena {
+  display: grid;
+  /* The centre column has to hold a five-glyph clock at its own display size.
+     It used to cap at 340px, which forced the clock below its intended scale on
+     a wide projector -- the second most important number on the board was the
+     one squeezed into a column sized for a label. */
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 460px) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.32), var(--shadow-1);
+}
+
+.arena__team {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(var(--space-4), 2vw, var(--space-6));
+  background: var(--surface);
+  transition: background 180ms var(--ease), box-shadow 180ms var(--ease);
+}
+
+.arena__team--leading {
+  background: color-mix(in srgb, var(--live) 9%, var(--surface));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--live) 62%, var(--line-strong));
+}
+
+.arena__identity {
+  display: flex;
+  width: min(100%, 32rem);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+/* The crest takes the margin the name's own top spacing used to have, so adding
+   one does not push the team name off the board. */
+.arena__identity .crest {
+  margin-bottom: clamp(var(--space-2), 0.8vw, var(--space-4));
+}
+
+.arena__name {
+  max-width: 100%;
+  font-size: clamp(1.45rem, 3.1vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.arena__team-name {
+  max-width: 100%;
+  color: var(--text-dim);
+  font-size: clamp(0.8rem, 1.4vw, 1.3rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* Both readouts are bounded by height as well as width. A board is a fixed
+   physical screen, so on a short-and-wide laptop the height is the scarcer
+   dimension and vw alone would grow the numerals past the frame. The ceiling
+   sits above the 19-22vh bound on purpose: a cap that binds first turns the
+   height term into dead code and leaves the panel half empty. */
+.arena__score {
+  display: inline-flex;
+  margin-block: clamp(var(--space-4), 2vw, var(--space-6));
+  color: var(--score-ink);
+  font-size: min(clamp(5.5rem, 15vw, 15rem), 22vh);
+}
+
+.arena__standing {
+  color: var(--text-faint);
+  font-size: clamp(0.7rem, 1vw, 0.9rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.arena__team--leading .arena__standing {
+  color: var(--live);
+}
+
+.arena__center {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(var(--space-2), 0.8vw, var(--space-4));
+  padding: clamp(var(--space-3), 1.2vw, var(--space-5));
+  border-inline: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.arena__clock-label,
+.arena__result {
+  max-width: 100%;
+  color: var(--text-faint);
+  font-size: clamp(0.68rem, 1vw, 0.92rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* A five-glyph readout is roughly 2.65em wide. The bay above is sized to hold it
+   at the sizes below plus its own padding, so the clock is never clipped by the
+   column it sits in -- at 1280x720 a wider clock ran straight into both edges. */
+.arena__clock {
+  display: inline-flex;
+  color: var(--warn);
+  font-size: min(clamp(3rem, 8vw, 9rem), 18vh);
+}
+
+.digital {
+  --segment-thickness: 0.1em;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.digital__glyphs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08em;
+  min-width: 0;
+}
+
+.digital__digit {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 0.58em;
+  height: 1.06em;
+}
+
+/*
+ * Only the lit segments are drawn. The unlit ones used to sit at 7% opacity so
+ * the readout kept the ghosted skeleton of a real seven-segment panel -- but at
+ * projector scale that skeleton reads as part of the number: the dark middle bar
+ * of an 8 looked like a stroke, and a 1 next to a 0 looked like it had an extra
+ * leg. A digit is now exactly the segments that are on.
+ */
+.digital__segment {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  opacity: 0;
+}
+
+.digital__segment--on {
+  opacity: 1;
+}
+
+.digital__segment--a,
+.digital__segment--d,
+.digital__segment--g {
+  left: 16%;
+  width: 68%;
+  height: var(--segment-thickness);
+  clip-path: polygon(11% 0, 89% 0, 100% 50%, 89% 100%, 11% 100%, 0 50%);
+}
+
+.digital__segment--a {
+  top: 0;
+}
+
+.digital__segment--g {
+  top: 45%;
+}
+
+.digital__segment--d {
+  bottom: 0;
+}
+
+.digital__segment--b,
+.digital__segment--c,
+.digital__segment--e,
+.digital__segment--f {
+  top: 8%;
+  width: var(--segment-thickness);
+  height: 42%;
+  clip-path: polygon(50% 0, 100% 12%, 100% 88%, 50% 100%, 0 88%, 0 12%);
+}
+
+.digital__segment--b,
+.digital__segment--c {
+  right: 0;
+}
+
+.digital__segment--c,
+.digital__segment--e {
+  top: 50%;
+  bottom: auto;
+}
+
+.digital__segment--e,
+.digital__segment--f {
+  left: 0;
+}
+
+.digital__digit--one .digital__segment {
+  transform: translateX(-0.24em);
+}
+
+.digital__colon {
+  display: inline-flex;
+  width: 0.28em;
+  height: 1.06em;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.19em;
+  margin-inline: 0.025em;
+  color: currentColor;
+}
+
+.digital__colon span {
+  width: 0.18em;
+  height: 0.18em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.digital__glyphs--changed {
+  animation: digital-change 220ms var(--ease-snap);
+}
+
+@keyframes digital-change {
+  0% {
+    opacity: 0.55;
+    transform: translateY(0.08em);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .disp--single .disp__hint,
+  .disp--single .disp-board__round,
+  .disp--single .disp__foot > span:first-child,
+  .disp--single .disp__foot > span:nth-child(2) {
+    display: none;
+  }
+
+  .disp--single .disp__top,
+  .disp--single .disp__foot {
+    padding-block: var(--space-2);
+  }
+
+  .disp-tool__label {
+    display: none;
+  }
+
+  .disp--single .disp-board__head {
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .arena {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  /* Rowised: name and standing stack at the left of a single score cell, so the
+     score is one number beside one name rather than a second band. */
+  .arena__team {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .arena__identity {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .arena__name {
+    font-size: clamp(1.25rem, 5.4vw, 2.2rem);
+  }
+
+  .arena__team-name {
+    font-size: clamp(0.72rem, 2.6vw, 1rem);
+  }
+
+  .arena__score {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    margin: 0;
+    font-size: clamp(4.5rem, 20vw, 7rem);
+  }
+
+  .arena__standing {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .arena__center {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    justify-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-block: 1px solid var(--line-strong);
+    border-inline: 0;
+  }
+
+  .arena__clock {
+    font-size: clamp(2.5rem, 12vw, 4rem);
+  }
+
+  .arena__result {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-height: 620px) and (min-width: 761px) {
+  .disp--single .disp__top,
+  .disp--single .disp__foot {
+    padding-block: var(--space-2);
+  }
+
+  .disp--single .disp-board {
+    padding: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .arena__name {
+    font-size: clamp(1.2rem, 2.4vw, 2rem);
+  }
+
+  .arena__score {
+    margin-block: var(--space-3);
+    font-size: clamp(4.5rem, 19vh, 7rem);
+  }
+
+  .arena__clock {
+    font-size: clamp(2.5rem, 12vh, 4.5rem);
+  }
+}
+
+/* The rows fill the board instead of floating in the middle of it. Centred rows
+   with a fixed content height left roughly a third of a 1080p board as blank
+   sheet above and below the two names -- the one thing a projector cannot
+   afford, because blank space is space a score could have been read from. */
+.disp-board__body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(var(--space-2), 1vw, var(--space-4));
+  min-height: 0;
+}
+
+.disp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* Centre, not baseline: the points are far larger than the name, so a shared
+     baseline would float the team name in the upper half of its box. */
+  align-items: center;
+  gap: clamp(var(--space-3), 2vw, var(--space-6));
+  /* Grow to share the height, never shrink below the content: on a narrow
+     projector holding three fields the row must not be squeezed. */
+  flex: 1 0 auto;
+  padding: clamp(var(--space-3), 1vw, var(--space-4)) clamp(var(--space-4), 1.4vw, var(--space-6));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.disp-row--leading {
+  border-color: color-mix(in srgb, var(--live) 55%, var(--line-strong));
+  background: color-mix(in srgb, var(--live) 10%, var(--surface-2));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px color-mix(in srgb, var(--live) 14%, transparent);
+}
+
+.disp-row__name {
+  display: flex;
+  align-items: center;
+  gap: clamp(var(--space-2), 1.2vw, var(--space-4));
+  min-width: 0;
+  font-size: clamp(1.4rem, 3.4vw, 4rem);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.disp-row__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.disp-row__points {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  /* Height-bounded like the single-field readouts, and raised past the old 7.5rem
+     ceiling: with the rows now filling the board there is room for it. */
+  font-size: min(clamp(3rem, 8vw, 9rem), 16vh);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: var(--score-ink);
+}
+
+/* The clock is a band, not a footnote -- but it is centred and content-width so
+   it reads as one object between the two rows rather than a third team. Spanning
+   the full width made it the biggest box on the board and pushed the actual
+   scores into a supporting role. */
+.disp-clock {
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(var(--space-2), 0.6vw, var(--space-3));
+  min-width: min(100%, 22rem);
+  padding: clamp(var(--space-2), 0.8vw, var(--space-4)) clamp(var(--space-4), 2vw, var(--space-6));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+.disp-clock__value {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: min(clamp(2.4rem, 6vw, 6rem), 11vh);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 4px var(--space-4);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.disp-clock__value--over {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line-strong));
+}
+.disp-clock__value--paused {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line-strong));
+}
+.disp-clock__label {
+  font-size: clamp(0.7rem, 1.2vw, 1rem);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 750;
+  color: var(--text-faint);
+}
+
+.disp-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  white-space: nowrap;
+  font-size: clamp(0.75rem, 1.5vw, 1.15rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 2px 12px;
+  background: var(--surface-2);
+}
+.disp-state::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+.disp-state--RUNNING {
+  color: var(--live);
+  border-color: color-mix(in srgb, var(--live) 55%, var(--line));
+  background: color-mix(in srgb, var(--live) 12%, transparent);
+}
+.disp-state--PAUSED {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+}
+.disp-state--HALFTIME {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.disp-state--FINISHED {
+  color: var(--text-dim);
+}
+.disp-state--ASSIGNED,
+.disp-state--READY {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 50%, var(--line));
+}
+.disp-state--WAITING,
+.disp-state--CANCELLED {
+  color: var(--text-faint);
+}
+
+.disp-idle {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.2rem, 3vw, 2.4rem);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+
+.disp__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) clamp(var(--space-3), 3vw, var(--space-6));
+  border-top: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--bg-elevated) 85%, transparent);
+  font-size: clamp(0.7rem, 1.1vw, 1rem);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 650;
+}
+
+/*
+ * The footer is a status bar first: the link state and the clock stay on one
+ * line because they are the two things a volunteer reads to know the board is
+ * trustworthy. Only the controls wrap, and they wrap onto their own rows rather
+ * than letting the last badge run off the edge of a phone screen.
+ */
+.disp__foot > span {
+  flex: none;
+}
+
+.disp__foot-controls {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.disp__foot-controls > .row {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+@media (max-width: 760px) {
+  /* Below tablet width the footer stops being a status bar and becomes a stack:
+     the controls need two rows, and the read-only badge is the one thing that
+     must stay legible, so it takes its own line at full strength. */
+  .disp__foot {
+    justify-content: flex-start;
+  }
+
+  .disp__foot-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+/* --- bracket display: wall poster ------------------------------------------- */
+
+/* The frame. It centres the poster and scrolls only when the poster has hit its
+   readability floor -- otherwise it sits still, because a wall poster that
+   moves under the reader is not a poster.
+
+   Centring is done with auto margins on the child, not with `justify-content:
+   center`. A centred flex item that is wider than its container overflows on
+   both sides, and the overflow to the left is not reachable: the reader loses
+   the start of the first group and cannot scroll back to it. Auto margins centre
+   the same box and still leave every pixel scrollable. */
+.bracket {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  padding: var(--space-4);
+  background: var(--bg);
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--line-strong) 55%, transparent) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+
+/* Reserves the poster's drawn size so centring and overflow are both honest:
+   the inner box is scaled, this one is not. */
+.bracket__fit {
+  position: relative;
+  flex: 0 0 auto;
+  margin: auto;
+}
+
+.bracket__poster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.bracket > .empty {
+  margin: auto;
+  align-self: center;
+}
+
+/* Centered-tree poster: cards are placed at computed coordinates so every
+   round after the first sits centered on the feeder matches it follows. The
+   column width and card height come from the layout as custom properties, so
+   the geometry has exactly one source of truth. */
+.bracket__wires {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* The wire palette. A knockout path is a win or a drop; a league path is a
+   qualification, a title, or a road not yet walked. Every one of them is also
+   distinguishable by dash and by weight, so the tree survives a projector with
+   the colour turned down. */
+.conn {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke: color-mix(in srgb, var(--text-faint) 55%, transparent);
+  opacity: 0.85;
+}
+.conn--win {
+  stroke: color-mix(in srgb, var(--info) 55%, var(--line-strong));
+}
+.conn--lose {
+  stroke-dasharray: 6 5;
+  stroke: color-mix(in srgb, var(--text-faint) 60%, transparent);
+}
+.conn--settled.conn--win {
+  stroke: color-mix(in srgb, var(--live) 60%, var(--line-strong));
+  opacity: 1;
+}
+
+/* Qualification: the path a team travels out of its group and into the next
+   match. Dotted while it is still a promise, solid once the match it feeds is
+   decided. */
+.conn--qualify {
+  stroke: color-mix(in srgb, var(--info) 50%, var(--line-strong));
+  stroke-dasharray: 2 6;
+  stroke-width: 2.5;
+  opacity: 1;
+}
+.conn--settled.conn--qualify {
+  stroke: color-mix(in srgb, var(--live) 62%, var(--line-strong));
+  stroke-dasharray: none;
+}
+/* The road not yet walked: every qualified team pointing at the final round
+   that does not exist yet. */
+.conn--pending {
+  stroke: color-mix(in srgb, var(--text-faint) 45%, transparent);
+  stroke-dasharray: 2 7;
+  opacity: 0.7;
+}
+.conn--champion {
+  stroke: var(--accent);
+  stroke-width: 3;
+  opacity: 1;
+}
+.conn--live {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
+/* --card-w and --card-h come from the layout, so the poster's geometry has
+   exactly one source of truth. */
+.band {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--space-3);
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--text);
+}
+/* A knockout column header is one round, so it centres on its cards. A league
+   band titles a whole phase, so it reads left and carries the phase's figures. */
+.band--round {
+  justify-content: center;
+  text-align: center;
+}
+.band__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Phase figures are content, so they leave the uppercase chrome of the title. */
+.band__meta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+/* The last band of a competition is the one the whole tree points at. */
+.band--final {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+}
+
+.bracket__node {
+  position: absolute;
+  width: var(--card-w, 244px);
+}
+.bracket__node .bm {
+  width: 100%;
+  height: var(--card-h, 84px);
+  display: flex;
+  flex-direction: column;
+}
+.bracket__node .bm__side {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.bm__tag {
+  color: var(--text-dim);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bm {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 94%, #000 6%));
+  overflow: hidden;
+  font-size: var(--step-0);
+  position: relative;
+  box-shadow: var(--shadow-1);
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease), transform 140ms var(--ease);
+}
+.bm:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-pop);
+}
+.bm--ready {
+  border-color: color-mix(in srgb, var(--info) 60%, var(--line-strong));
+}
+.bm--running {
+  border-color: color-mix(in srgb, var(--live) 65%, var(--line-strong));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 0 0 3px color-mix(in srgb, var(--live) 18%, transparent), 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+.bm--paused {
+  border-color: color-mix(in srgb, var(--warn) 60%, var(--line-strong));
+}
+.bm--finished {
+  opacity: 0.86;
+}
+.bm--cancelled {
+  opacity: 0.55;
+}
+.bm--third {
+  border-style: dashed;
+}
+.bm--current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow-1);
+}
+
+.bm__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 800;
+  color: var(--text-dim);
+}
+
+.bm__field {
+  color: var(--info);
+  font-weight: 800;
+}
+
+/* League card. Its lane gutter already names the round, so the header drops the
+   slot number and the field badge moves to the right edge on its own. The extra
+   column is what a fixture board used to spend a whole column on: the points
+   this match awarded each side. It wears a well so it cannot be misread as a
+   second digit of the score beside it. */
+.bm--league .bm__head {
+  justify-content: flex-start;
+}
+.bm--league .bm__field {
+  margin-left: auto;
+}
+.bm--league .bm__side {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-3);
+}
+.bm__pts {
+  min-width: 30px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  text-align: center;
+  font-weight: 800;
+  font-size: var(--step--1);
+  color: var(--text-dim);
+}
+.bm--running .bm__pts,
+.bm--ready .bm__pts,
+.bm--assigned .bm__pts,
+.bm--waiting .bm__pts {
+  background: transparent;
+}
+/* A side that won its match takes the live green, which the card's own winner
+   tint and the higher score already say in words. */
+.bm__side--winner .bm__pts {
+  background: color-mix(in srgb, var(--live) 16%, var(--surface-2));
+  color: var(--live);
+}
+
+.bm__side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.bm__side:first-of-type {
+  border-top: 0;
+}
+.bm__side--winner {
+  background: color-mix(in srgb, var(--live) 13%, transparent);
+  font-weight: 750;
+}
+.bm__side--loser {
+  color: var(--text-faint);
+}
+
+.bm__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm__score {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 800;
+  min-width: 22px;
+  text-align: right;
+}
+
+.bracket__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--bg-elevated);
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.bracket__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bracket__swatch {
+  width: 16px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.bracket__swatch--running {
+  border-color: var(--live);
+  background: color-mix(in srgb, var(--live) 20%, var(--surface));
+}
+.bracket__swatch--ready {
+  border-color: var(--info);
+  background: color-mix(in srgb, var(--info) 18%, var(--surface));
+}
+.bracket__swatch--finished {
+  background: var(--surface-3);
+}
+
+.bracket__swatch--current {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+
+/* A qualification chip: the same live-green edge the qualification wires use,
+   so a chip and the path leaving it read as one object. */
+.bracket__swatch--qualified {
+  border-color: color-mix(in srgb, var(--live) 75%, transparent);
+  background: color-mix(in srgb, var(--live) 22%, var(--surface));
+}
+
+/* --- league tree: phases as bands, groups as lanes -------------------------- */
+
+/* The lane is a frame and nothing else: a 1px ring drawn as an inset shadow, so
+   its padding box and its border box are the same box. Every tick and chip
+   inside it is placed from the layout's own coordinates, and a ring drawn as a
+   border would shift them by its own width. */
+.lane {
+  position: absolute;
+  padding: 0 var(--space-3) var(--space-3);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+  box-shadow: inset 0 0 0 1px var(--line), inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.lane__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--lane-head, 34px);
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+}
+/* The title is the lane's identity and never gives way. The meta is a summary,
+   so it is the one that truncates -- with a long enough summary the title used
+   to shrink to nothing and the lane lost its name entirely. */
+.lane__title {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: var(--step-0);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+}
+.lane__meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The gutter. A tick is a round name in the tournament's own words, and it is
+   content, so it leaves the uppercase chrome of the band and lane titles. It is
+   clamped to two lines because a group round name is the longest string on the
+   poster and the gutter is 40px. */
+.lane__tick {
+  position: absolute;
+  transform: translateY(-50%);
+  width: 40px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-faint);
+  text-align: right;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- qualification chip: the leaf a wire leaves from ------------------------ */
+
+.out {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  font-size: var(--step--1);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.out__rank {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-size: 0.6875rem;
+  font-weight: 800;
+}
+.out__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.out__pts {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  font-weight: 800;
+  color: var(--text-dim);
+}
+.out__note {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent);
+  font-size: var(--step--1);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warn);
+}
+
+/* A team that is through. The live-green edge is the same signal the wires use,
+   so a chip and the path leaving it read as one object. */
+.out--qualified {
+  border-color: color-mix(in srgb, var(--live) 55%, var(--line-strong));
+  background: color-mix(in srgb, var(--live) 10%, var(--surface-2));
+}
+.out--qualified .out__rank {
+  background: color-mix(in srgb, var(--live) 22%, var(--surface-3));
+  color: var(--live);
+}
+
+/* The last table in a competition qualifies nobody, but its leader is still the
+   thing the crown hangs off, so it gets a chip of its own -- in the accent, the
+   one colour nothing else on the poster competes with. */
+.out--lead {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line-strong));
+}
+.out--lead .out__rank {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-3));
+  color: var(--accent);
+}
+
+/* A group that has not produced a table yet. Dashed is the system's idle
+   marker, and it keeps a wire from pointing at nothing. */
+.out--undecided {
+  border-style: dashed;
+  color: var(--text-faint);
+  font-weight: 600;
+  justify-content: center;
+}
+
+/* --- the road not yet walked, and the crown -------------------------------- */
+
+/* A competition that plans a final round but has not earned it yet. The plate
+   is where the qualified teams are going, so the shape of the whole event is
+   legible before the last match of the group stage is played. */
+.ghost {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 40%, var(--bg));
+  text-align: center;
+}
+.ghost__title {
+  font-size: var(--step-0);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.ghost__sub {
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-faint);
+  max-width: 26ch;
+}
+
+/* The one thing the whole tree points at. */
+.crown {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 16%, var(--surface)),
+    color-mix(in srgb, var(--accent) 7%, var(--surface))
+  );
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+.crown__label {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.crown__name {
+  font-size: var(--step-2);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  max-height: 2.4em;
+  overflow: hidden;
+}

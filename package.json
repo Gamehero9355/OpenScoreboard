@@ -1,0 +1,100 @@
+{
+  "name": "tournament-scoreboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline-first local tournament scoreboard with two parallel playing fields, live WebSocket sync and QR joining over the LAN.",
+  "author": "Tournament Scoreboard",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "browserslist": [
+    "chrome >= 100",
+    "edge >= 100",
+    "firefox >= 100",
+    "safari >= 15"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "tsx watch src/backend/index.ts",
+    "dev:client": "vite",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "icons": "node scripts/make-icons.mjs",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/server/backend/index.js",
+    "serve": "npm run build && npm run start",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "clean": "node -e \"for (const p of ['dist','release']) require('fs').rmSync(p,{recursive:true,force:true})\"",
+    "demo": "node dist/server/backend/index.js --demo --open"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.1",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "oxlint": "^1.87.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "local.tournament.scoreboard",
+    "productName": "Tournament Scoreboard",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tournament Scoreboard",
+      "artifactName": "TournamentScoreboard-Setup-${version}.exe"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# Keeps editors and Git from introducing churn. Deliberately minimal: see
+# docs/LINTING.md for why no whole-file formatter is used in this project --
+# tests/hooks.test.ts and tests/routing.test.ts read source text and depend on
+# the current layout.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+[*.md]
+# Two trailing spaces are a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[*.{ico,png,svg}]
+insert_final_newline = false
+trim_trailing_whitespace = false

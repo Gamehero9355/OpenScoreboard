@@ -1,0 +1,42 @@
+node_modules/
+dist/
+release/
+data/
+.review-data/
+.tmp-verify/
+*.log
+.DS_Store
+.vite/
+coverage/
+
+# Tooling scaffolding that is not part of the project source. `.opencode/` in
+# particular carries its own nested node_modules.
+.opencode/
+.impeccable/
+.freebuff/
+
+# Credentials. `access.json` holds the operator and admin tokens and the PIN
+# hash, and `data/` can be pointed anywhere with --data-dir, so this must not
+# rely on the directory rules above to protect it.
+access.json
+access.json.bak
+access.unreadable-*.json
+
+# The embedded database and its write-ahead log.
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Editor and OS noise.
+Thumbs.db
+desktop.ini
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+
+# Scratch screenshots at the repository root. Scoped to the root on purpose:
+# public/icon-*.png and build/icon.ico are source assets and must stay tracked.
+/*.png
+/*.jpg
+/*.jpeg

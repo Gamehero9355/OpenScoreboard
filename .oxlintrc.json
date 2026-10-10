@@ -1,0 +1,51 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "release",
+    "build",
+    "data",
+    "coverage",
+    ".opencode",
+    ".impeccable",
+    ".freebuff",
+    ".review-data",
+    ".tmp-verify"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-console": "off",
+    "eqeqeq": "warn",
+    "no-empty": ["warn", { "allowEmptyCatch": true }],
+    "no-var": "error",
+    "prefer-const": "error",
+    "require-await": "off",
+    "no-throw-literal": "error",
+
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "eslint/no-shadow": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/prefer-set-has": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "unicorn/prefer-array-find": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
+    "oxc/no-map-spread": "off",
+    "eslint/no-await-in-loop": "off"
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts", "tests/**/*.mjs"],
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
+  ]
+}

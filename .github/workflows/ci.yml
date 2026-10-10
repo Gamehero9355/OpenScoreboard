@@ -1,0 +1,105 @@
+name: CI
+
+# Windows, not Linux: this app ships a Windows installer, `node:sqlite` is only
+# available on some runtimes (so persistence silently falls back to JSON on
+# Linux), and the JSON adapter has a documented Windows-specific file-locking
+# quirk in its test cleanup. Testing on Linux would not test what ships.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: typecheck, lint and tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.5
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `npm run check` is typecheck + lint + tests in one command, so a
+      # contributor and CI cannot drift apart.
+      - name: Check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the client really is self-contained
+        # The offline-first guarantee is a product promise: nothing in the built
+        # bundle may reach for a remote origin. Every `https?://` occurrence is
+        # extracted and checked against an allowlist of inert references --
+        # XML namespace identifiers (never fetched) and React's own error
+        # message. A new entry must be justified rather than waved through.
+        run: |
+          $text = (Get-Content "dist/client/assets/*.js" -Raw) -join "`n"
+          $text += (Get-Content "dist/client/index.html" -Raw)
+          $text += (Get-Content "dist/client/sw.js" -Raw)
+          $allowed = @(
+            "http://www.w3.org/2000/svg",
+            "http://www.w3.org/1999/xhtml",
+            "http://www.w3.org/1999/xlink",
+            "http://www.w3.org/1998/Math/MathML",
+            "http://www.w3.org/XML/1998/namespace",
+            "https://reactjs.org/docs/error-decoder.html"
+          )
+          $found = [regex]::Matches($text, 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]{4,80}') |
+            ForEach-Object { $_.Value } | Sort-Object -Unique
+          $bad = $found | Where-Object { $url = $_; -not ($allowed | Where-Object { $url.StartsWith($_) }) }
+          if ($bad) {
+            $bad | ForEach-Object { Write-Host "::error::remote reference in the client bundle: $_" }
+            exit 1
+          }
+          Write-Host "client bundle is self-contained ($($found.Count) inert reference(s))"
+
+      - name: Upload client bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-bundle
+          path: dist/client
+          retention-days: 7
+
+  installer:
+    name: Windows installer
+    runs-on: windows-latest
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.5
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Unsigned, so every download triggers a SmartScreen prompt. Signing needs
+      # a purchased certificate and is deliberately out of scope for now.
+      - name: Build installer
+        run: npm run dist:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: TournamentScoreboard-installer
+          path: release/*.exe
+          retention-days: 30
