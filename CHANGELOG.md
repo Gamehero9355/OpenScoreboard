@@ -14,6 +14,21 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Added
 
+- **A tagged version publishes its own Windows installer.** Until now the installer only
+existed as a build artifact attached to a workflow run, which expires after 30 days and is
+only reachable from the Actions tab; getting one meant a source tree, Node.js and
+`npm run dist:win`. Pushing a tag (`git tag v1.0.0 && git push origin v1.0.0`, README §12.1)
+now builds it and publishes it as a GitHub Release. The workflow runs the same checks CI
+runs, because `ci.yml` watches branches and a tag commit would otherwise never be tested,
+and it refuses to go on unless the tag names the version in `package.json` — a release
+labelled `v1.2.0` that contains a 1.1.0 installer is worse than no release, and the filename
+cannot show it. The release notes are the changelog section for that version, extracted by
+`scripts/changelog-section.mjs`; a missing or empty section stops the release instead of
+publishing a download page with nothing to read, which is what tagging with the entries still
+under `## [Unreleased]` used to produce. A suffixed tag such as `v1.0.0-rc.1` is marked as a
+pre-release so it never becomes *Latest*. Publishing uses the runner's own `gh`, so no
+third-party action is trusted with a token that can write to the repository.
+
 - **English and German.** Settings → Language switches the whole hall at once,
   because the setting travels in the ordinary settings delta: one tap on the host
   and every phone, tablet and projector repaints. Each device can also pick its own
@@ -70,6 +85,13 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Changed
 
+- **The documented Node floor is 22.12, up from 22.5.** The floor is set by npm, not by
+  the app: Node 22.5 to 22.11 bundle an npm that cannot install this project (below), so
+  the version the README asks for, `engines.node` and the launcher's own check all say
+  22.12 now, and `Start-Scoreboard.bat` says why when it finds something older. 22.12 is
+  also the oldest release `oxlint` accepts, which is what the install warning on 22.5 was
+  about.
+
 - **README §3 opens with the one-command Windows start.** `Start-Scoreboard.bat` was the
   fastest way to a running scoreboard and the manual never mentioned it, so a Windows user
   downloading the repository had to find the file, guess what it would do and learn from
@@ -89,6 +111,26 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Fixed
 
+- **CI failed on every push because the install silently did nothing.** Node 22.5 bundles
+  npm 10.8.2, and that npm dies part way through `npm ci` — "Error: Exit handler never
+  called!" — yet exits 0, having never written `node_modules/.bin`. The install step stayed
+  green while the next step failed with `tsc` "is not recognized", which names the one part
+  of the toolchain that was fine. The workflow now runs Node 24, which completes the same
+  install with 132 links, and a new step fails by name if `node_modules/.bin` ever comes up
+  empty again. Node 24 also provides `node:sqlite` without a flag, so CI exercises the
+  storage driver the app actually ships instead of the JSON fallback.
+- **`flush()` could return before the audit log was on disk.** Event appends are fired
+  without being awaited so that a score change never waits for a disk write, and with
+  SQLite the write happens synchronously inside that call — which is exactly why the gap
+  was invisible. The JSON driver queues the write instead, so `flush()` returned with the
+  last `MATCH_STARTED`, `SCORE_UPDATED` and `MATCH_FINISHED` entries still in flight: the
+  persistence test read eight events where twelve existed, and the quit path's "flushed"
+  backup could miss the tail of the audit log. `flush()` now awaits the append queue too.
+- **The SQLite driver test failed on a runtime the app supports.**
+  `uses SQLite when the runtime provides it` asserted SQLite unconditionally, but Node 22.5
+  to 22.12 keep `node:sqlite` behind `--experimental-sqlite`, and there the app deliberately
+  falls back to the JSON driver. The check now skips on those runtimes, the way the
+  durability tests already did, instead of failing a supported configuration.
 - **The launcher could skip the build it needed.** `scripts/needs-build.mjs` answered
   "stale" with exit code 0 and "up to date" with 1 — the code a crash exits with — so a
   check that could not run was read as "nothing to do" and `Start-Scoreboard.bat` started
@@ -100,7 +142,7 @@ claimed to do, not as a list of regressions that were shipped and later patched.
   install without the build tools (`npm install --omit=dev`, or a first start interrupted
   halfway) passed the check and failed later inside `npm run build`. It now requires
   `express`, `vite` and `typescript`, and it compares `node --version` against the
-  documented 22.5 minimum, naming the version it found rather than letting an older runtime
+  documented minimum, naming the version it found rather than letting an older runtime
   fail somewhere the reason is invisible.
 - **The launcher's first run read like a failed install.** `npm install` front-loaded 28
   vulnerabilities, ten deprecation notices and the "install scripts not covered" warnings

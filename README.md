@@ -42,7 +42,8 @@ who want to see the scores.
 ## 2. Requirements
 
 * **Windows 10 or 11** (the app also runs on macOS and Linux for development)
-* **Node.js 22.5 or newer** for running from source (`node --version`)
+* **Node.js 22.12 or newer** for running from source (`node --version`) — Node 22.5 to 22.11
+  ship an npm that fails the install without saying so (see troubleshooting)
 * A WLAN/router that allows devices to talk to each other (no client isolation)
 * No internet connection required at any point
 
@@ -101,6 +102,10 @@ npm run dist:win     # build the Windows installer: release/TournamentScoreboard
 The installer creates a Start-menu entry (**Tournament Scoreboard**) and an optional desktop
 shortcut. Launching the app starts the local server automatically — there is no terminal
 window to manage.
+
+The released installer is built from the tag rather than here: **Releases** carries
+`TournamentScoreboard-Setup-<version>.exe` for every tagged version (see §12.1). The two
+commands above are for building one yourself, which needs the source tree and Node.js.
 
 ---
 
@@ -333,6 +338,22 @@ newest file from `data/backups/` via **Settings → Backup → Restore**.
 
 Run `npm run build` (or `npm run dev` while developing) and reload.
 
+**The install claims to be finished but `vite`/`tsc` "is not recognized"**
+
+The npm bundled with Node 22.5 to 22.11 dies part way through `npm install` — it prints
+`Exit handler never called!` — and still reports success, so `node_modules` ends up without
+`node_modules/.bin` and the next command finds no build tools. Update Node.js to 22.12 or
+newer (`node --version`), delete `node_modules`, and run the starter again. `npm install`
+is the step that fails, not the build.
+
+**`npm run dist:win` stops at "Cannot create symbolic link"**
+
+electron-builder's helper archive holds macOS symbolic links, and the 7-Zip it bundles cannot
+create them without an elevated process, so the whole extraction fails over two `.dylib` files a
+Windows build never uses. It is the tool cache, not the project: copy one of the numbered folders
+it left behind (`%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\<number>`) to
+`%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0` and run the command again.
+
 **Port already in use**
 
 The server automatically tries the next free port and prints the one it bound to. Pin a port
@@ -379,6 +400,24 @@ npm run check        # typecheck + lint + tests (what CI runs)
 npm run icons        # regenerate PWA icons and build/icon.ico
 npm run dist:win     # Windows installer
 ```
+
+### 12.1 Cutting a release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The [release workflow](.github/workflows/release.yml) takes over from there: it runs the same
+checks CI runs (`ci.yml` watches branches only, so the tag commit is verified here), refuses to
+build unless the tag names the version in `package.json`, builds the installer and publishes it
+with the changelog section for that version as the release notes. Those notes come from
+[`scripts/changelog-section.mjs`](scripts/changelog-section.mjs), which stops the release when
+this version has no section of its own — usually because the entries are still under
+`## [Unreleased]` — rather than publishing a download page with nothing on it. A tag with a
+suffix, such as `v1.0.0-rc.1`, is published as a pre-release so it never becomes *Latest*. To
+retry a run that failed half way, use **Re-run all jobs** on the workflow run: it re-uses the
+same tag instead of creating a second release.
 
 See [docs/LINTING.md](docs/LINTING.md) for the lint rules and why no whole-file
 formatter is used, and [CHANGELOG.md](CHANGELOG.md) for what changed.

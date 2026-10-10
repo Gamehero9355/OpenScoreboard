@@ -1,0 +1,113 @@
+name: Release
+
+# A tag is the release trigger, not a branch. `ci.yml` only runs for branches,
+# so the tag commit is checked and tested again here *before* anything is
+# published: a release that skipped its own tests is the one download nobody can
+# verify afterwards.
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  # One release per tag, and a started release is never cancelled: by the time
+  # the cancel would land, the installer is already published.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Publishing needs write access to releases. `ci.yml` stays read-only.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Installer to a GitHub Release
+    runs-on: windows-latest
+    # An Electron download, the NSIS tooling and the packaging step: more room
+    # than the verify job needs.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same runtime as `ci.yml`, for the same reason: the npm bundled with Node
+      # 22.5 cannot install this project (it crashes part way through and still
+      # exits 0). See the comment in that workflow.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Fail loudly when the install did not link the tools
+        # Same tripwire as `ci.yml`: an npm that exits 0 without populating
+        # `node_modules/.bin` must not reach a release.
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'node_modules/.bin/tsc.cmd')) {
+            throw 'npm ci left node_modules/.bin without tsc -- the install silently failed'
+          }
+
+      - name: The tag must name the version in package.json
+        # A release that says v1.2.0 while the installer inside it contains 1.1.0
+        # is worse than no release, and the filename alone cannot show it. The
+        # tag is the one place the two meet, so check them against each other
+        # before spending minutes on the build.
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($tag -ne "v$version") {
+            Write-Host "::error::tag $tag does not name package.json version $version -- expected v$version"
+            exit 1
+          }
+          Write-Host "tag $tag matches package.json version $version"
+
+      # The same command CI runs, so a release cannot be the first place a
+      # failing test is noticed.
+      - name: Check
+        run: npm run check
+
+      - name: Write the release notes from the changelog
+        # The changelog section for this version *is* the release note. An empty
+        # body would be a download page with nothing to read, so a missing
+        # section stops the release here rather than after publishing.
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $header = @(
+            '### Windows installer'
+            ''
+            'Download the file below and run it. The installer is unsigned, so Windows SmartScreen asks for confirmation the first time.'
+          ) -join "`n"
+          $body = node scripts/changelog-section.mjs $tag CHANGELOG.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Written through the file API rather than `Set-Content -Encoding`, whose
+          # UTF-8 means "with a byte order mark" in Windows PowerShell and "without"
+          # in pwsh 7. The notes are published verbatim, so they must not depend on
+          # which shell happened to run the step.
+          [System.IO.File]::WriteAllText("$PWD/RELEASE_NOTES.md", $header + "`n`n" + ($body -join "`n") + "`n")
+          Get-Content RELEASE_NOTES.md | Select-Object -First 10
+
+      - name: Build the installer
+        # `dist:win` builds the client and the server first and then packages
+        # them. Unsigned on purpose: signing needs a purchased certificate and is
+        # deliberately out of scope -- see the note in `ci.yml`.
+        run: npm run dist:win
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          # `gh` ships on the runner, so no third-party release action has to be
+          # handed a token that can write to this repository.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $installer = Get-ChildItem -Path release/*.exe
+          if (-not $installer) { throw 'the build produced no installer in release/' }
+          $arguments = @('--title', $tag, '--notes-file', 'RELEASE_NOTES.md', '--verify-tag')
+          # A tag such as v1.1.0-rc.1 is a candidate, not the version to hand
+          # every visitor, so it must not become the "Latest" release.
+          if ($tag -match '-') { $arguments += '--prerelease' }
+          gh release create $tag $installer.FullName @arguments
+          Write-Host "published $tag with $($installer.Name) ($([math]::Round($installer.Length / 1MB, 1)) MB)"

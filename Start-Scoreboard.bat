@@ -20,7 +20,7 @@ where node >nul 2>nul
 if errorlevel 1 (
   echo.
   echo  [ERROR] Node.js was not found.
-  echo  Please install Node.js 22.5 or newer from https://nodejs.org/
+  echo  Please install Node.js 22.12 or newer from https://nodejs.org/
   echo  Then double-click this file again.
   echo.
   pause
@@ -30,6 +30,10 @@ if errorlevel 1 (
 REM The build tools and the server want a recent Node. On an older release the
 REM first failure surfaces deep inside npm, the bundler or the build check,
 REM where the cause is not visible -- so compare the version here and say it.
+REM The 22.12 floor is not arbitrary: Node 22.5 to 22.11 bundle an npm that
+REM crashes part way through the install and still reports success, which leaves
+REM node_modules without the build tools and turns the next step into
+REM "vite is not recognized".
 set "NODE_MAJOR=99"
 set "NODE_MINOR=0"
 for /f "tokens=1,2 delims=v." %%a in ('node --version') do (
@@ -40,10 +44,10 @@ if not defined NODE_MAJOR set "NODE_MAJOR=99"
 if not defined NODE_MINOR set "NODE_MINOR=0"
 set "NODE_OLD="
 if %NODE_MAJOR% LSS 22 set "NODE_OLD=1"
-if %NODE_MAJOR% EQU 22 if %NODE_MINOR% LSS 5 set "NODE_OLD=1"
+if %NODE_MAJOR% EQU 22 if %NODE_MINOR% LSS 12 set "NODE_OLD=1"
 if defined NODE_OLD (
   echo.
-  echo  [WARNING] Node.js 22.5 or newer is recommended. This PC has:
+  echo  [WARNING] Node.js 22.12 or newer is recommended. This PC has:
   node --version
   echo  The scoreboard tries to continue. If the build or the server fails,
   echo  update Node.js from https://nodejs.org/ and run this file again.

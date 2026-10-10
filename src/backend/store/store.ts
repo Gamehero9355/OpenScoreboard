@@ -68,6 +68,8 @@ export class TournamentStore {
   private saveTimer: NodeJS.Timeout | null = null;
   private saveInFlight: Promise<void> | null = null;
   private saveAgain = false;
+  /** Audit-log writes that have been started but not finished yet. */
+  private appendQueue: Promise<void> = Promise.resolve();
   private newId = createIdGenerator();
   private startedAt = Date.now();
 
@@ -304,11 +306,20 @@ export class TournamentStore {
       actor: event.actor,
       payload: JSON.stringify(event.data ?? (event.text ? { message: event.message, text: event.text } : { message: event.message })),
     }));
-    return this.adapter.appendEvents(events).catch((error: unknown) => {
+    const queued = this.adapter.appendEvents(events).catch((error: unknown) => {
       // eslint-disable-next-line no-console
       console.error('[store] could not append audit events', error);
       void ctx;
     });
+    // Writing the audit log is deliberately not awaited on the mutation path,
+    // so it is chained here instead. `flush()` is what the quit path calls to
+    // mean "everything is on disk", and the JSON driver writes asynchronously:
+    // without this, a save that had already finished let `flush()` return while
+    // the last events were still in flight, and they only appeared a moment
+    // later. SQLite happens to write synchronously inside the call, so the gap
+    // was invisible until the fallback driver was exercised.
+    this.appendQueue = this.appendQueue.then(() => queued);
+    return queued;
   }
 
   private scheduleSave(delay: number): void {
@@ -361,6 +372,9 @@ export class TournamentStore {
 
   async flush(): Promise<void> {
     if (this.saveTimer || this.saveInFlight) await this.save();
+    // The snapshot and the audit log are separate writes; "flushed" has to mean
+    // both have landed.
+    await this.appendQueue;
   }
 
   /* ---------------------------------------------------------------- */

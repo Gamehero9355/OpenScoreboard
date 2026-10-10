@@ -25,13 +25,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24, not the oldest release the app still starts on. The npm
+      # bundled with Node 22.5 (10.8.2) dies part way through `npm ci` -- it
+      # prints "Exit handler never called!" -- and still exits 0, having never
+      # written `node_modules/.bin`. The install therefore looks successful and
+      # the failure lands one step later as "tsc is not recognized", which
+      # points at the wrong thing entirely. 24 also has `node:sqlite` without a
+      # flag, so CI exercises the driver that actually ships rather than the
+      # JSON fallback.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.5
+          node-version: 24
           cache: npm
 
       - name: Install
         run: npm ci
+
+      - name: Fail loudly when the install did not link the tools
+        # Tripwire for the failure described above: an npm that exits 0 without
+        # populating `node_modules/.bin` must not be able to masquerade as a
+        # successful install again.
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'node_modules/.bin/tsc.cmd')) {
+            throw 'npm ci left node_modules/.bin without tsc -- the install silently failed'
+          }
 
       # `npm run check` is typecheck + lint + tests in one command, so a
       # contributor and CI cannot drift apart.
@@ -84,9 +102,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Same runtime as the verify job, for the same reason (see the comment
+      # there): the npm bundled with Node 22.5 cannot install this project.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.5
+          node-version: 24
           cache: npm
 
       - name: Install

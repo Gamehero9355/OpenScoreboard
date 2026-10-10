@@ -7,7 +7,7 @@
  * the reason it matters rather than at a line number.
  */
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -635,7 +635,23 @@ describe('http rate limiting', () => {
 
   it('does not refuse anything a real event does', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'tsb-ratelimit-ok-'));
-    const server = await startServer({ dataDir, port: 0, quiet: true, demo: true, autoPort: false });
+    // A built client of its own, the way `server.test.ts` and `access.test.ts`
+    // start their servers. Without one, every static request is answered with
+    // 503 "The web interface has not been built yet", so this test only passed
+    // when `dist/` had been left behind by an earlier build -- and CI runs the
+    // tests before the build, which made it fail there for a reason that had
+    // nothing to do with rate limiting.
+    const clientDir = mkdtempSync(join(tmpdir(), 'tsb-ratelimit-ok-client-'));
+    writeFileSync(join(clientDir, 'index.html'), '<!doctype html><title>Tournament Scoreboard</title>');
+    writeFileSync(join(clientDir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    const server = await startServer({
+      dataDir,
+      clientDir,
+      port: 0,
+      quiet: true,
+      demo: true,
+      autoPort: false,
+    });
     try {
       const base = `http://127.0.0.1:${server.port}`;
       // A host dashboard polling system status, a page load's worth of assets,
@@ -661,7 +677,13 @@ describe('http rate limiting', () => {
       expect((await fetch(`${base}/api/export/matches.csv`)).status).toBe(200);
     } finally {
       await server.close();
-      rmSync(dataDir, { recursive: true, force: true });
+      for (const dir of [dataDir, clientDir]) {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+        } catch {
+          /* Windows may still hold a handle */
+        }
+      }
     }
   });
 

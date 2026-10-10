@@ -28,6 +28,20 @@ function tempDir(label: string): string {
   return dir;
 }
 
+/**
+ * Does this runtime hand out `node:sqlite`? Reached the same way the driver
+ * reaches it, so the answer cannot disagree with what the app will pick: Node
+ * 22.5 to 22.12 keep it behind `--experimental-sqlite`, and there the app
+ * deliberately falls back to the JSON driver. The SQLite-specific checks below
+ * are skipped rather than failed when that is the case, because the fallback is
+ * a supported configuration, not a regression.
+ */
+function sqliteAvailable(): boolean {
+  const getBuiltin = (process as NodeJS.Process & { getBuiltinModule?: (id: string) => unknown })
+    .getBuiltinModule;
+  return typeof getBuiltin === 'function' ? Boolean(getBuiltin('node:sqlite')) : false;
+}
+
 afterEach(async () => {
   for (const store of stores.splice(0)) await store.dispose();
   for (const dir of dirs.splice(0)) {
@@ -65,7 +79,7 @@ async function openWith(
 }
 
 describe('embedded database', () => {
-  it('uses SQLite when the runtime provides it', async () => {
+  it.skipIf(!sqliteAvailable())('uses SQLite when the runtime provides it', async () => {
     const env = await openAt(tempDir('driver'));
     expect(env.store.adapter.kind).toBe('sqlite');
     expect(env.store.adapterNote).toContain('SQLite');
