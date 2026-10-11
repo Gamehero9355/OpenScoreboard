@@ -14,6 +14,23 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Added
 
+- **The projector can be switched between the scores and five other hall
+  screens, from either dashboard.** The display has always drawn one thing: a
+  flip-score board per field. Between games a hall needs the projector to say
+  something else — that the event is paused, whose crest this is, what the clock
+  says, where everyone stands, and what is being played next — and the only way
+  to get that was to point a laptop at it. The host's side rail and the field
+  operator's header now carry a six-way switcher (Scores, Pause, Logo, Clock,
+  Standings, Schedule), and the pause and logo screens carry one optional line
+  the host types. The choice is an ordinary settings value, not a second
+  channel: every screen follows it, and a projector that reconnects lands on the
+  right screen. Operators are allowed to switch it, because the person who can
+  see the match has gone to half-time is the operator at the field and walking
+  to the desk to put "Pause" on the wall is the friction this removes;
+  `display.setScreen` is an operator command that writes the settings slice.
+  The score board is the default, so a hall that never touches the switcher sees
+  exactly what it always saw.
+
 - **A tagged version publishes its own Windows installer.** Until now the installer only
 existed as a build artifact attached to a workflow run, which expires after 30 days and is
 only reachable from the Actions tab; getting one meant a source tree, Node.js and
@@ -85,6 +102,41 @@ third-party action is trusted with a token that can write to the repository.
 
 ### Changed
 
+- **The Platz-Bedienung is a referee slate that fits the device in your hand, not a
+  stretched phone screenshot on a PC.** The old layout was one centred 860px
+  column whose player cards flexed to fill whatever height the window offered, so
+  the same empty rectangle sat inside each card on every screen — a phone had a
+  void between the score and the +1/+2/+3 row, a laptop had two enormous blank
+  boxes, and a phone held sideways cut the transport off below the fold. Bands are
+  now sized by their content and centred, so leftover height becomes breathing
+  rhythm. A wide screen (from 1180px) grows the main column and adds a right rail —
+  the same side, and the same width class, as the host dashboard's — carrying the
+  keyboard legend permanently instead of behind a toggle, plus the next ready
+  match; the rail collapses behind the existing toggle on narrow screens. A short
+  landscape becomes a two-column compact slate (cards left, clock and transport
+  right, 46px keys), and short portrait windows tighten instead of scrolling. The
+  field name and round clip instead of wrapping mid-word, the header keeps its
+  badge cluster on one line, and **Undo/Redo are real buttons now** — the operator
+  spec always listed them, but they existed only as the U and R hotkeys, which a
+  phone in one hand cannot press. Nothing else moved: same routes, same commands,
+  same 44px floor, same dark/light themes, same mark-plus-label states.
+
+- **On a PC the Platz-Bedienung now fills the screen instead of floating in it.**
+  The first pass left the wide layout as a centred island: the bands stopped at
+  roughly two thirds of the window height, the rail panels floated in the void
+  beside them, and a 1920px monitor showed two thirds empty screen. The console now
+  takes the viewport. The clock band grows to absorb the height the cards do not
+  need — a tall bordered well with the largest numerals on the screen and −1m/+1m
+  centred beside them — and the rail gains a third panel with the match's own
+  scoring log (time, player, delta, running score, newest first), the same rows the
+  host's field card already shows for the same match, so the desk operator can see
+  what was scored and when without leaving the operator screen. The panel absorbs
+  the rail's leftover height and scrolls internally; below 1180px the rail stays
+  behind the existing toggle and carries all three panels with it. Tall phones
+  (701–860px) compress only their rhythm so a hint line can never push a control
+  off the screen, the lock and read-only panels flow inline instead of stacking in
+  a short landscape, and read-only sessions sit on one screen in both orientations.
+
 - **The documented Node floor is 22.12, up from 22.5.** The floor is set by npm, not by
   the app: Node 22.5 to 22.11 bundle an npm that cannot install this project (below), so
   the version the README asks for, `engines.node` and the launcher's own check all say
@@ -110,6 +162,40 @@ third-party action is trusted with a token that can write to the repository.
   so a format gaining a step is one change rather than seven.
 
 ### Fixed
+
+- **The Turnierleitung hid things, cut things off and lied about time.** Six
+  defects, all found by driving the real dashboard through a headless browser at
+  five viewports and reading the boxes back: the topbar's nav strip shrank below
+  its items and silently clipped them — on a phone five of the nine destinations
+  (Bracket, Results, New tournament, Teams, Settings) were unreachable without
+  knowing to scroll an unmarked strip; the side rail's rows let their short
+  labels shrink first, so field names read `FIEL...` and activity timestamps
+  `15:46:...`; the queue squeezed "Team Charlie vs Team Alpha" into 70 pixels on
+  a phone, mid-word; the copyable LAN address trailed off into an ellipsis
+  instead of showing what the host has to read out loud; the statusbar wrapped
+  with `state #` and the update age stranded at the *left* edge under a right-
+  hand row; and `relativeTime` passed its age to `Intl.RelativeTimeFormat` with
+  the wrong sign, so every age in the app read as a *future* time — the status
+  bar reported "updated in 40 minutes" for a state last changed 40 minutes ago,
+  in both languages. The nav now drops to its own full-width row below 1180px
+  and becomes the icon strip on a phone (every destination one tap away, the
+  name kept as label and tooltip), compact rows let only the flexible middle
+  shrink, the queue's actions take their own line under the match on a phone,
+  addresses wrap in full, the status bar travels as two groups so a wrapped line
+  lands on the right, and the sign is pinned by `tests/util.test.ts`. A seventh,
+  dev-only defect: the dev client never proxied `/logos`, so every crest came
+  back as the SPA's HTML and drew a broken image in front of every score.
+
+- **A copied Platz-Bedienung link was a read-only session, while the QR code
+  next to it was not.** Scanning the QR landed on `/field/<n>#t=…` and granted
+  operator rights; copying the link beside it silently dropped the fragment, so
+  the pasted URL opened `/field/<n>` as a spectator and every score button was
+  gone. The copy button and the print dialog's "Open" button now hand over the
+  exact URL the QR encodes, token included — one link, one permission, whatever
+  device it reaches. The token still travels only in the fragment, which no
+  browser sends to a server, and the app still strips it from the address bar
+  after storing it on that device; spectator links never carry one at all. If the
+  operator PIN is set, the copied link asks for it exactly like the QR does.
 
 - **CI failed on every push because the install silently did nothing.** Node 22.5 bundles
   npm 10.8.2, and that npm dies part way through `npm ci` — "Error: Exit handler never

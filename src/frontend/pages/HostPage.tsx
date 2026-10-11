@@ -28,6 +28,7 @@ import { cx, formatTime, relativeTime, tokenHeader } from '../lib/util';
 import { resolveAccess } from '../lib/token';
 import { Button, ConnectionBadge, Empty, MatchStateBadge, Panel, SaveIndicator } from '../components/primitives';
 import { QrGallery } from '../components/QrPanel';
+import { DisplayScreenPicker } from '../components/DisplayScreenPicker';
 import { BracketView } from '../components/BracketView';
 import { FieldCard } from '../components/FieldCard';
 import {
@@ -287,6 +288,13 @@ export function HostPage() {
         </div>
 
         <aside className="shell__side">
+          {/* What the projector is showing, switched from the desk. Sitting at
+              the top of the rail puts it where a host between games is already
+              looking, rather than behind a dialog on a page they have to find. */}
+          <Panel title={t('display.title')}>
+            <DisplayScreenPicker />
+          </Panel>
+
           <Panel
             title={`${t('field.count')} (${fieldIds(state).length})`}
             actions={
@@ -403,32 +411,37 @@ export function HostPage() {
       </div>
 
       <div className="statusbar">
-        <ConnectionBadge />
-        <SaveIndicator lastSaveAt={system?.lastSaveAt ?? null} pending={snapshot.pending} />
-        <span className="statusbar__item tiny">
-          <span className={cx('dot', system?.databaseOk === false && 'dot--error', system?.databaseOk && 'dot--live')} />
-          {system ? `${system.database} · ${system.eventsStored} ${t('diag.events')}` : 'database'}
+        <span className="statusbar__group">
+          <ConnectionBadge />
+          <SaveIndicator lastSaveAt={system?.lastSaveAt ?? null} pending={snapshot.pending} />
+          <span className="statusbar__item tiny">
+            <span className={cx('dot', system?.databaseOk === false && 'dot--error', system?.databaseOk && 'dot--live')} />
+            {system ? `${system.database} · ${system.eventsStored} ${t('diag.events')}` : 'database'}
+          </span>
+          <span className="statusbar__item tiny">
+            <span className="dot dot--live" />
+            {system ? `${system.clients} ${t('diag.clients')}` : 'clients'}
+          </span>
+          {system ? (
+            <>
+              <span className="statusbar__item tiny faint">
+                {system.messageCount} {t('diag.messageCount')}
+              </span>
+              <span className="statusbar__item tiny faint">
+                {t('diag.memory')} {system.memoryMb} MB · cpu {system.cpuPercent}%
+              </span>
+              <span className="statusbar__item tiny faint">
+                {t('diag.uptime')} {Math.round(system.uptimeSec / 60)} min
+              </span>
+            </>
+          ) : null}
         </span>
-        <span className="statusbar__item tiny">
-          <span className="dot dot--live" />
-          {system ? `${system.clients} ${t('diag.clients')}` : 'clients'}
+        {/* State and age travel as one group so a wrapped line lands on the
+            right, under the right, instead of jumping back to the left edge. */}
+        <span className="statusbar__group">
+          <span className="statusbar__item tiny faint">state #{state.seq}</span>
+          <span className="statusbar__item tiny faint">updated {relativeTime(state.updatedAt, now)}</span>
         </span>
-        {system ? (
-          <>
-            <span className="statusbar__item tiny faint">
-              {system.messageCount} {t('diag.messageCount')}
-            </span>
-            <span className="statusbar__item tiny faint">
-              {t('diag.memory')} {system.memoryMb} MB · cpu {system.cpuPercent}%
-            </span>
-            <span className="statusbar__item tiny faint">
-              {t('diag.uptime')} {Math.round(system.uptimeSec / 60)} min
-            </span>
-          </>
-        ) : null}
-        <span className="grow" />
-        <span className="statusbar__item tiny faint">state #{state.seq}</span>
-        <span className="statusbar__item tiny faint">updated {relativeTime(state.updatedAt, now)}</span>
       </div>
 
       {treeFullscreen ? (

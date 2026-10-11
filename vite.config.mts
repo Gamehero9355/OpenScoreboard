@@ -74,6 +74,11 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': { target: `http://127.0.0.1:${BACKEND_PORT}`, changeOrigin: false },
+      // Crests live in the host's logo folder and are served by the backend, so
+      // a dev client has to ask the backend for them exactly like production.
+      // Without this every crest came back as the SPA's index.html and drew a
+      // broken image.
+      '/logos': { target: `http://127.0.0.1:${BACKEND_PORT}`, changeOrigin: false },
       '/ws': { target: `ws://127.0.0.1:${BACKEND_PORT}`, ws: true },
     },
   },

@@ -12,7 +12,7 @@ import {
   type ParticipantInput,
 } from '../../shared/commands';
 import { validateSettingsPatch, type ValidationResult } from '../../shared/protocol';
-import type { FieldId, Match, MatchState, Settings, TournamentState } from '../../shared/types';
+import type { DisplayScreen, FieldId, Match, MatchState, Settings, TournamentState } from '../../shared/types';
 import type { AccessControl, SessionScope } from '../auth/access';
 import type { TournamentStore } from '../store/store';
 import { EngineError, errorCode } from '../util/errors';
@@ -829,6 +829,22 @@ export async function dispatchCommand(
           m.settings = true;
           m.urgency = 'immediate';
           deps.onSettingsChanged?.(s.settings);
+        });
+        break;
+      }
+      /**
+       * Switch the hall display. It writes the settings slice because that is
+       * what every screen already follows -- one value, one delta, and the
+       * projector repaints without a second channel to keep in sync.
+       */
+      case 'display.setScreen': {
+        execute((s, _c, m) => {
+          s.settings.displayScreen = payload.screen as DisplayScreen;
+          if (payload.message !== undefined) {
+            s.settings.displayMessage = (payload.message as string | null) ?? null;
+          }
+          m.settings = true;
+          m.urgency = 'immediate';
         });
         break;
       }

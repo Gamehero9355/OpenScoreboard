@@ -12,10 +12,11 @@ import { live } from '../lib/live';
 import { useHotkeys, useLive, useMatchClock, useWakeLock } from '../lib/hooks';
 import { rememberPin } from '../lib/token';
 import { asTranslate, useI18n } from '../lib/useI18n';
-import { cx, formatClock } from '../lib/util';
-import { Badge, Button, ConnectionBadge, MatchStateBadge } from '../components/primitives';
+import { cx, formatClock, formatTime } from '../lib/util';
+import { Badge, Button, ConnectionBadge, MatchStateBadge, Modal } from '../components/primitives';
 import { EndMatchDialog } from '../components/dialogs';
-import { IconLock, IconPause, IconPlay, IconStop } from '../components/icons';
+import { DisplayScreenPicker } from '../components/DisplayScreenPicker';
+import { IconEye, IconLock, IconPause, IconPlay, IconRedo, IconStop, IconUndo } from '../components/icons';
 
 type Overlay = { matchId: string; winner: 'A' | 'B' | null } | null;
 
@@ -27,6 +28,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [lockError, setLockError] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState(false);
+  const [showDisplay, setShowDisplay] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const field = state?.fields[fieldId] ?? null;
@@ -81,6 +83,9 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
   const reset = () => void run('match.reset');
 
   const nextAvailable = useMemo(() => (state ? nextReady(state, fieldId) : null), [state, fieldId]);
+
+  /* --- this match's scoring log, newest first (the wide screen's rail) ------- */
+  const actions = useMemo(() => (match ? [...match.history].reverse() : []), [match]);
 
   const startNext = async () => {
     if (!nextAvailable) return;
@@ -140,9 +145,9 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
   const finished = match?.state === 'FINISHED';
 
   return (
-    <div className="op">
+    <div className={cx('op', showKeys && 'op--keys-open')}>
       <div className="op__bar">
-        <span className="stack g1" style={{ minWidth: 0 }}>
+        <span className="op__identity">
           <span className="op__field">{field.name}</span>
           <span className="op__round">
             {match
@@ -152,14 +157,33 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
               : t('op.noMatchAssigned')}
           </span>
         </span>
-        <span className="row g2">
+        <span className="op__status">
           {match ? <MatchStateBadge state={match.state} /> : null}
           {snapshot.role === 'spectator' ? (
             <Badge tone="danger">
               <IconLock size={11} /> {t('role.spectator')}
             </Badge>
           ) : null}
-          <Button size="sm" tone="ghost" onClick={() => setShowKeys((value) => !value)} title={t('dialog.shortcuts')}>
+          {/* The hall display, on the operator's own screen. A field operator
+              is the person who knows the match is pausing, so the switch that
+              puts "Pause" on the wall lives where they already are. */}
+          <Button
+            size="sm"
+            tone="ghost"
+            disabled={!canControl}
+            onClick={() => setShowDisplay(true)}
+            title={t('display.title')}
+          >
+            <IconEye size={13} /> {t('display.short')}
+          </Button>
+          <Button
+            size="sm"
+            tone="ghost"
+            className="op__keys"
+            aria-pressed={showKeys}
+            onClick={() => setShowKeys((value) => !value)}
+            title={t('dialog.shortcuts')}
+          >
             {t('dialog.shortcuts')}
           </Button>
           <ConnectionBadge compact />
@@ -196,178 +220,225 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
         />
       ) : null}
 
-      {showKeys ? (
-        <div className="panel__body stack g2">
-          <span className="tiny dim">{t('dialog.shortcuts')}</span>
-          <ul className="small stack g1">
-            <li>{t('op.scSpace')}</li>
-            <li>{t('op.scPoint', { key: '1', name: nameOf(state, match?.participantAId ?? null) })}</li>
-            <li>{t('op.scPoint', { key: '2', name: nameOf(state, match?.participantBId ?? null) })}</li>
-            <li>{t('op.scMisc')}</li>
-          </ul>
-        </div>
-      ) : null}
-
-      {!match ? (
-        <div className="op__main">
-          <div className="field__empty stack g3" style={{ alignItems: 'center', flex: '1 1 auto' }}>
-            <span className="op__field">{field.name}</span>
-            <span className="dim">{t('op.waitingAssignment')}</span>
-            {nextAvailable ? (
-              <span className="stack g2" style={{ alignItems: 'center' }}>
-                <span className="small">
-                  {t('op.nextReadyLabel')} {nameOf(state, nextAvailable.participantAId)} vs{' '}
-                  {nameOf(state, nextAvailable.participantBId)}
-                </span>
-                <Button tone="primary" size="lg" disabled={!canControl || busy} onClick={() => void startNext()}>
-                  {t('setup.autoLoadNext')}
-                </Button>
-              </span>
+      <div className="op__body">
+        <aside className="op__rail" aria-label={t('dialog.shortcuts')}>
+          <section className="op-panel">
+            <h2 className="op-panel__title">{t('dialog.shortcuts')}</h2>
+            <ShortcutLegend state={state} match={match} />
+          </section>
+          <section className="op-panel op-panel--fill">
+            <h2 className="op-panel__title">{t('op.recentActions')}</h2>
+            {actions.length > 0 ? (
+              <ul className="op-log">
+                {actions.map((action) => (
+                  <li key={action.id} className="op-log__row">
+                    <span className="op-log__time">{formatTime(action.ts)}</span>
+                    <span className="op-log__what">
+                      {action.participantId ? nameOf(state, action.participantId) : t('action.correct')}
+                      {action.delta !== 0 ? ` ${action.delta > 0 ? '+' : ''}${action.delta}` : ''}
+                    </span>
+                    <span className="op-log__score tnum">
+                      {action.prevA}:{action.prevB} → {action.nextA}:{action.nextB}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <span className="hint">{t('op.nothingReady')}</span>
+              <p className="op-panel__body dim">{t('fc.noActions')}</p>
             )}
-          </div>
-        </div>
-      ) : (
-        <div className="op__main">
-          <div className="op__players">
-            {(
-              [
-                { side: 'A' as const, name: nameOf(state, match.participantAId), points: match.scoreA, other: match.scoreB },
-                { side: 'B' as const, name: nameOf(state, match.participantBId), points: match.scoreB, other: match.scoreA },
-              ] as const
-            ).map((entry) => (
-              <div
-                key={entry.side}
-                className={cx(
-                  'op-card',
-                  entry.points > entry.other && 'op-card--leading',
-                  entry.points < entry.other && 'op-card--trailing',
-                )}
-              >
-                <div className="op-card__top">
-                  <span className="op-card__name">{entry.name}</span>
-                  <span className="op-card__points" aria-label={t('score.points', { n: entry.points })}>
-                    {entry.points}
+          </section>
+          <section className="op-panel">
+            <h2 className="op-panel__title">{t('op.nextAvailable')}</h2>
+            {nextAvailable ? (
+              <p className="op-panel__body">
+                {nameOf(state, nextAvailable.participantAId)}{' '}
+                <span className="dim">vs</span> {nameOf(state, nextAvailable.participantBId)}
+              </p>
+            ) : (
+              <p className="op-panel__body dim">{t('op.nothingReady')}</p>
+            )}
+          </section>
+        </aside>
+
+        {!match ? (
+          <div className="op__main">
+            <div className="field__empty stack g3" style={{ alignItems: 'center', flex: '1 1 auto' }}>
+              <span className="op__field">{field.name}</span>
+              <span className="dim">{t('op.waitingAssignment')}</span>
+              {nextAvailable ? (
+                <span className="stack g2" style={{ alignItems: 'center' }}>
+                  <span className="small">
+                    {t('op.nextReadyLabel')} {nameOf(state, nextAvailable.participantAId)} vs{' '}
+                    {nameOf(state, nextAvailable.participantBId)}
                   </span>
-                </div>
-                <div className="op-card__buttons">
-                  {state.settings.scoringIncrements.map((increment) => (
+                  <Button tone="primary" size="lg" disabled={!canControl || busy} onClick={() => void startNext()}>
+                    {t('setup.autoLoadNext')}
+                  </Button>
+                </span>
+              ) : (
+                <span className="hint">{t('op.nothingReady')}</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="op__main">
+            <div className="op__players">
+              {(
+                [
+                  { side: 'A' as const, name: nameOf(state, match.participantAId), points: match.scoreA, other: match.scoreB },
+                  { side: 'B' as const, name: nameOf(state, match.participantBId), points: match.scoreB, other: match.scoreA },
+                ] as const
+              ).map((entry) => (
+                <div
+                  key={entry.side}
+                  className={cx(
+                    'op-card',
+                    entry.points > entry.other && 'op-card--leading',
+                    entry.points < entry.other && 'op-card--trailing',
+                  )}
+                >
+                  <div className="op-card__top">
+                    <span className="op-card__name">{entry.name}</span>
+                    <span className="op-card__points" aria-label={t('score.points', { n: entry.points })}>
+                      {entry.points}
+                    </span>
+                  </div>
+                  <div className="op-card__buttons">
+                    {state.settings.scoringIncrements.map((increment) => (
+                      <button
+                        key={increment}
+                        type="button"
+                        className="op-plus"
+                        disabled={!canControl || busy || finished}
+                        onClick={() => score(entry.side, increment)}
+                      >
+                        <span className="op-plus__sign">+</span>
+                        {increment}
+                      </button>
+                    ))}
                     <button
-                      key={increment}
                       type="button"
-                      className="op-plus"
+                      className="op-plus op-plus--minus"
                       disabled={!canControl || busy || finished}
-                      onClick={() => score(entry.side, increment)}
+                      onClick={() => score(entry.side, -1)}
+                      aria-label={t('op.subtractOne', { name: entry.name })}
                     >
-                      <span className="op-plus__sign">+</span>
-                      {increment}
+                      −
                     </button>
-                  ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="op__side">
+              <div className="op__clock">
+                <Button
+                  size="sm"
+                  tone="ghost"
+                  disabled={!canControl || match.timer.running}
+                  onClick={() =>
+                    void run('match.setTimer', {
+                      durationSec: Math.max(60, match.timer.durationSec - 60),
+                    })
+                  }
+                  title={t('op.shortenClock')}
+                >
+                  −1m
+                </Button>
+                <span
+                  className={cx(
+                    'op__time',
+                    clock.over && 'op__time--over',
+                    (match.state === 'PAUSED' || match.state === 'HALFTIME') && 'op__time--paused',
+                  )}
+                >
+                  {formatClock(clock.ms)}
+                </span>
+                <Button
+                  size="sm"
+                  tone="ghost"
+                  disabled={!canControl || match.timer.running}
+                  onClick={() => void run('match.setTimer', { durationSec: match.timer.durationSec + 60 })}
+                  title={t('op.extendClock')}
+                >
+                  +1m
+                </Button>
+              </div>
+
+              <div className="op__transport op__transport--wide">
+                {match.state === 'HALFTIME' ? (
                   <button
                     type="button"
-                    className="op-plus op-plus--minus"
+                    className="op-btn op-btn--start"
+                    onClick={startSecondHalf}
                     disabled={!canControl || busy || finished}
-                    onClick={() => score(entry.side, -1)}
-                    aria-label={t('op.subtractOne', { name: entry.name })}
                   >
-                    −
+                    <IconPlay size={18} /> {t('op.startSecondHalf')}
                   </button>
-                </div>
+                ) : match.state === 'RUNNING' || match.state === 'PAUSED' ? (
+                  <button type="button" className="op-btn op-btn--pause" onClick={pause} disabled={!canControl || busy}>
+                    {match.state === 'PAUSED' ? <IconPlay size={18} /> : <IconPause size={18} />}
+                    {match.state === 'PAUSED' ? t('action.resume') : t('action.pause')}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="op-btn op-btn--start"
+                    onClick={start}
+                    disabled={!canControl || busy || finished}
+                  >
+                    <IconPlay size={18} /> {t('action.start')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="op-btn op-btn--finish"
+                  onClick={() => setDialog('end')}
+                  disabled={!canControl || busy || finished}
+                >
+                  <IconStop size={16} /> {t('action.end')}
+                </button>
               </div>
-            ))}
-          </div>
 
-          <div className="op__clock">
-            <Button
-              size="sm"
-              tone="ghost"
-              disabled={!canControl || match.timer.running}
-              onClick={() =>
-                void run('match.setTimer', {
-                  durationSec: Math.max(60, match.timer.durationSec - 60),
-                })
-              }
-              title={t('op.shortenClock')}
-            >
-              −1m
-            </Button>
-            <span
-              className={cx(
-                'op__time',
-                clock.over && 'op__time--over',
-                (match.state === 'PAUSED' || match.state === 'HALFTIME') && 'op__time--paused',
-              )}
-            >
-              {formatClock(clock.ms)}
-            </span>
-            <Button
-              size="sm"
-              tone="ghost"
-              disabled={!canControl || match.timer.running}
-              onClick={() => void run('match.setTimer', { durationSec: match.timer.durationSec + 60 })}
-              title={t('op.extendClock')}
-            >
-              +1m
-            </Button>
-          </div>
+              <div className="op__secondary">
+                <button
+                  type="button"
+                  className="op-btn op-btn--ghost"
+                  onClick={undo}
+                  disabled={!canControl || busy || match.history.length === 0}
+                >
+                  <IconUndo size={14} /> {t('action.undo')}
+                </button>
+                <button
+                  type="button"
+                  className="op-btn op-btn--ghost"
+                  onClick={redo}
+                  disabled={!canControl || busy || match.redoStack.length === 0}
+                >
+                  <IconRedo size={14} /> {t('action.redo')}
+                </button>
+                <button type="button" className="op-btn op-btn--ghost" onClick={reset} disabled={!canControl || busy}>
+                  {t('action.reset')}
+                </button>
+                <button
+                  type="button"
+                  className="op-btn op-btn--ghost"
+                  onClick={() => live.command('match.setTimer', { matchId: match.id, fieldId, mode: match.timer.mode === 'down' ? 'up' : 'down' })}
+                  disabled={!canControl || busy}
+                  title={t('op.switchClock')}
+                >
+                  {t(match.timer.mode === 'down' ? 'clock.up' : 'clock.down')}
+                </button>
+              </div>
 
-          <div className="op__transport op__transport--wide">
-            {match.state === 'HALFTIME' ? (
-              <button
-                type="button"
-                className="op-btn op-btn--start"
-                onClick={startSecondHalf}
-                disabled={!canControl || busy || finished}
-              >
-                <IconPlay size={18} /> {t('op.startSecondHalf')}
-              </button>
-            ) : match.state === 'RUNNING' || match.state === 'PAUSED' ? (
-              <button type="button" className="op-btn op-btn--pause" onClick={pause} disabled={!canControl || busy}>
-                {match.state === 'PAUSED' ? <IconPlay size={18} /> : <IconPause size={18} />}
-                {match.state === 'PAUSED' ? t('action.resume') : t('action.pause')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="op-btn op-btn--start"
-                onClick={start}
-                disabled={!canControl || busy || finished}
-              >
-                <IconPlay size={18} /> {t('action.start')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="op-btn op-btn--finish"
-              onClick={() => setDialog('end')}
-              disabled={!canControl || busy || finished}
-            >
-              <IconStop size={16} /> {t('action.end')}
-            </button>
+              {waitingReason(state, match, asTranslate(t)) ? (
+                <p className="hint center">{waitingReason(state, match, asTranslate(t))}</p>
+              ) : null}
+              {state.settings.autoLoadNext ? <p className="hint center">{t('op.autoLoadOn')}</p> : null}
+            </div>
           </div>
-
-          <div className="op__secondary">
-            <button type="button" className="op-btn op-btn--ghost" onClick={reset} disabled={!canControl || busy}>
-              {t('action.reset')}
-            </button>
-            <button
-              type="button"
-              className="op-btn op-btn--ghost"
-              onClick={() => live.command('match.setTimer', { matchId: match.id, fieldId, mode: match.timer.mode === 'down' ? 'up' : 'down' })}
-              disabled={!canControl || busy}
-              title={t('op.switchClock')}
-            >
-              {t(match.timer.mode === 'down' ? 'clock.up' : 'clock.down')}
-            </button>
-          </div>
-
-          {waitingReason(state, match, asTranslate(t)) ? <p className="hint center">{waitingReason(state, match, asTranslate(t))}</p> : null}
-          {state.settings.autoLoadNext ? (
-            <p className="hint center">{t('op.autoLoadOn')}</p>
-          ) : null}
-        </div>
-      )}
+        )}
+      </div>
 
       {dialog === 'end' && match ? (
         <EndMatchDialog
@@ -382,6 +453,12 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
         />
       ) : null}
 
+      {showDisplay ? (
+        <Modal title={t('display.title')} onClose={() => setShowDisplay(false)}>
+          <DisplayScreenPicker compact />
+        </Modal>
+      ) : null}
+
       {overlay && !dialog ? (
         <WinnerOverlay
           state={state}
@@ -393,6 +470,30 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The keyboard legend. The same list serves two screens: behind the
+ * "Keyboard shortcuts" toggle on a phone, and permanently in the side rail on a
+ * wide screen, where a mouse and a keyboard are a given and a hidden list would
+ * hide the fastest way to score from the people who could use it.
+ */
+function ShortcutLegend({
+  state,
+  match,
+}: {
+  state: NonNullable<ReturnType<typeof useLive>['state']>;
+  match: Match | null;
+}) {
+  const { t } = useI18n();
+  return (
+    <ul className="op-keys">
+      <li>{t('op.scSpace')}</li>
+      <li>{t('op.scPoint', { key: '1', name: nameOf(state, match?.participantAId ?? null) })}</li>
+      <li>{t('op.scPoint', { key: '2', name: nameOf(state, match?.participantBId ?? null) })}</li>
+      <li>{t('op.scMisc')}</li>
+    </ul>
   );
 }
 

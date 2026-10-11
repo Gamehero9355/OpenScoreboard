@@ -367,3 +367,44 @@ describe('http surface', () => {
     expect(broken.status).toBe(400);
   }, 20000);
 });
+
+/**
+ * The hall display is switched from a field operator's phone as well as the
+ * host's desk, so this is an access-control question and not just a UI one:
+ * the operator command must reach the settings slice, and a spectator session
+ * must not be able to change what the hall sees.
+ */
+describe('display screen switching', () => {
+  it('lets a field operator switch the hall display and refuses a spectator', async () => {
+    const operator = await open(await operatorToken('field-1'));
+    expect(operator.role()).toBe('operator');
+
+    const switched = await operator.command('display.setScreen', { screen: 'pause', message: 'Halbzeit' });
+    expect(switched.ok).toBe(true);
+    expect(server.store.state.settings.displayScreen).toBe('pause');
+    expect(server.store.state.settings.displayMessage).toBe('Halbzeit');
+
+    // Back to the board. A switch that carries no message must not wipe the one
+    // the host typed, or clearing the pause text would happen by accident.
+    const back = await operator.command('display.setScreen', { screen: 'scores' });
+    expect(back.ok).toBe(true);
+    expect(server.store.state.settings.displayScreen).toBe('scores');
+    expect(server.store.state.settings.displayMessage).toBe('Halbzeit');
+
+    const rejected = await operator.command('display.setScreen', { screen: 'nope' });
+    expect(rejected.ok).toBe(false);
+    expect(rejected.code).toBe('BAD_REQUEST');
+
+    // A token the server does not know is a spectator; no token at all would be
+    // the host PC on loopback, which is granted admin.
+    const spectator = await open('not-a-real-token');
+    expect(spectator.role()).toBe('spectator');
+    const refused = await spectator.command('display.setScreen', { screen: 'standings' });
+    expect(refused.ok).toBe(false);
+    expect(refused.code).toBe('FORBIDDEN');
+    // A refused command changes nothing.
+    expect(server.store.state.settings.displayScreen).toBe('scores');
+
+    await Promise.all([operator.close(), spectator.close()]);
+  }, 20000);
+});

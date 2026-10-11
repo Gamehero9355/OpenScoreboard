@@ -10,6 +10,7 @@ import {
   MAX_MANUAL_MATCHES,
   MIN_FIELDS,
   RADBALL_FINAL_KEYS,
+  isDisplayScreen,
   isFieldId,
   isRadballAgeCategory,
 } from './types';
@@ -1376,6 +1377,38 @@ export const COMMANDS = {
       const p = obj(payload);
       if (!isRecord(p.patch)) return invalid('patch must be an object');
       return valid({ patch: p.patch });
+    },
+  },
+  /**
+   * Switch what the hall's display screens show.
+   *
+   * Deliberately `operator` rather than `admin`: the person who can see that
+   * the match has gone to half-time is the operator standing at the field, and
+   * making them walk to the desk to press Pause is the friction this exists to
+   * remove. The screen is hall-wide (there is one projector), so it is not
+   * field-scoped -- any operator switches the same screen.
+   */
+  'display.setScreen': {
+    permission: 'operator',
+    fieldScoped: false,
+    validate: (payload) => {
+      const p = obj(payload);
+      if (!isDisplayScreen(p.screen)) {
+        return invalid('screen must be one of scores, pause, logo, clock, standings, results');
+      }
+      const out: Record<string, unknown> = { screen: p.screen };
+      // The message is optional: switching screens and editing the pause text
+      // are two different presses, and a switch that forgot the text must not
+      // wipe what the host typed.
+      if (p.message !== undefined) {
+        if (p.message === null || p.message === '') out.message = null;
+        else {
+          const message = asString(p.message, 160);
+          if (!message) return invalid('message must be 160 characters or fewer');
+          out.message = message;
+        }
+      }
+      return valid(out);
     },
   },
   'system.backup': {

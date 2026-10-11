@@ -274,9 +274,9 @@ function NavItem({
 }) {
   const active = to === '/' ? current === '/' : current.startsWith(to);
   return (
-    <Link to={to} className={cx('nav__item')} aria-current={active ? 'page' : undefined}>
+    <Link to={to} className={cx('nav__item')} aria-current={active ? 'page' : undefined} aria-label={label} title={label}>
       {icon}
-      {label}
+      <span className="nav__label">{label}</span>
     </Link>
   );
 }

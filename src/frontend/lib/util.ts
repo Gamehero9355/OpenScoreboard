@@ -69,7 +69,11 @@ export function formatDateTime(ts: number, locale?: Locale): string {
  * this guards, and a readable English timestamp beats a thrown error.
  */
 export function relativeTime(ts: number, now = Date.now(), locale?: Locale): string {
-  const delta = Math.round((now - ts) / 1000);
+  // Intl.RelativeTimeFormat counts *up into the future*, so a timestamp in the
+  // past has to come out negative to read "40 minutes ago" -- passing the age
+  // as a positive number made the statusbar claim the state was last updated
+  // "in 40 minutes".
+  const delta = Math.round((ts - now) / 1000);
   const abs = Math.abs(delta);
   const [value, unit] =
     abs < 60

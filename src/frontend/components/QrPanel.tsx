@@ -46,7 +46,6 @@ export function QrTile({
 }) {
   const [copied, setCopied] = useState(false);
   const { t } = useI18n();
-  const shown = link.token ? `${link.url.replace(/#t=.*$/, '')}` : link.url;
   return (
     <div className="stack g2 qr-tile" style={{ alignItems: 'stretch' }}>
       <div className="row g2 between qr-tile__head">
@@ -61,11 +60,11 @@ export function QrTile({
       <QrCode text={link.url} compact={compact} alt={t('qr.alt', { label: link.label })} />
       <p className="hint">{link.description}</p>
       <CopyableUrl
-        url={shown}
+        url={link.url}
         label={copied ? t('fc.copied') : t('fc.copyLink')}
         onCopied={(ok) => {
           setCopied(ok);
-          if (ok) onCopy?.(shown);
+          if (ok) onCopy?.(link.url);
           window.setTimeout(() => setCopied(false), 1500);
         }}
       />
@@ -96,7 +95,7 @@ export function JoinCard({
       <div className="stack g1">
         <span className="tiny faint">{primary ? t('qr.openOnPhone') : link.description}</span>
         <CopyableUrl
-          url={link.token ? link.url.replace(/#t=.*$/, '') : link.url}
+          url={link.url}
           label={copied ? t('fc.copied') : t('action.copy')}
           onCopied={(ok) => {
             setCopied(ok);
@@ -126,7 +125,7 @@ export function PrintLinkRow({ links }: { links: JoinLink[] }) {
         <Button
           key={link.purpose}
           size="sm"
-          onClick={() => window.open(link.url.replace(/#t=.*$/, ''), '_blank', 'noopener')}
+          onClick={() => window.open(link.url, '_blank', 'noopener')}
         >
           Open {link.label}
         </Button>

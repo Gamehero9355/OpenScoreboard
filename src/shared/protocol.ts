@@ -4,7 +4,7 @@
  * checked before it reaches the tournament engine.
  */
 import type { ClientMessage, FieldId, Settings, MatchState } from './types';
-import { MAX_FIELDS, MIN_FIELDS, PROTOCOL_VERSION, isFieldId } from './types';
+import { DISPLAY_SCREENS, MAX_FIELDS, MIN_FIELDS, PROTOCOL_VERSION, isDisplayScreen, isFieldId } from './types';
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -229,6 +229,23 @@ export function validateSettingsPatch(patch: SettingsPatch, current: Settings): 
         const v = asBool(raw);
         if (v === null) return invalid('invertDisplayColors must be a boolean');
         out.invertDisplayColors = v;
+        break;
+      }
+      case 'displayScreen': {
+        if (!isDisplayScreen(raw)) return invalid(`displayScreen must be one of ${DISPLAY_SCREENS.join(', ')}`);
+        out.displayScreen = raw;
+        break;
+      }
+      case 'displayMessage': {
+        // Null and the empty string both mean "no message", so clearing it is a
+        // normal patch rather than something the settings page has to special-case.
+        if (raw === null || raw === '') {
+          out.displayMessage = null;
+          break;
+        }
+        const v = asString(raw, 160);
+        if (!v) return invalid('displayMessage must be 160 characters or fewer');
+        out.displayMessage = v;
         break;
       }
       case 'defaultMatchDurationSec': {

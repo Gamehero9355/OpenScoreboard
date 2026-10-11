@@ -825,6 +825,30 @@ export interface FieldState {
 export type Theme = 'dark' | 'light';
 export type WinCondition = 'manual' | 'points' | 'timer' | 'either';
 
+/**
+ * What the hall's display screens are showing.
+ *
+ * `scores` is the board the display has always drawn -- one flip-score sheet
+ * per field. The rest replace it with a single hall-wide screen, and they exist
+ * because the projector is already on the wall: between games it should be able
+ * to say "Pause", carry the club's crest, show the wall clock, publish the
+ * tables, or list the running order -- without anybody tabbing to another app.
+ *
+ * The switch is one value for the whole hall rather than one per field, because
+ * the projector that shows the tables is the same projector that shows the
+ * scores, and two operators flipping it to different things would be a fight
+ * the display cannot win.
+ */
+export type DisplayScreen = 'scores' | 'pause' | 'logo' | 'clock' | 'standings' | 'results';
+
+/** Every display screen, in the order a switcher lists them. */
+export const DISPLAY_SCREENS: DisplayScreen[] = ['scores', 'pause', 'logo', 'clock', 'standings', 'results'];
+
+/** True for a well-formed display screen. */
+export function isDisplayScreen(value: unknown): value is DisplayScreen {
+  return typeof value === 'string' && (DISPLAY_SCREENS as string[]).includes(value);
+}
+
 export interface Settings {
   /* General */
   tournamentName: string;
@@ -837,6 +861,16 @@ export interface Settings {
   logoDataUrl: string | null;
   showSponsorBar: boolean;
   invertDisplayColors: boolean;
+  /**
+   * What every projector and TV is showing right now. Defaults to the score
+   * board, so a hall that never touches it sees exactly what it always saw.
+   */
+  displayScreen: DisplayScreen;
+  /**
+   * The line under the “Pause” heading, and the caption on the logo screen.
+   * Null (or empty) leaves the headline to speak for itself.
+   */
+  displayMessage: string | null;
   /* Scoring */
   defaultMatchDurationSec: number;
   scoringIncrements: number[];

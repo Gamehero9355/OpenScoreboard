@@ -729,6 +729,209 @@
   color: var(--text-faint);
 }
 
+/* --- the hall-wide screens -------------------------------------------------
+   Pause, crest, clock, tables and running order. These replace the flip-score
+   boards rather than sitting beside them, because the projector showing the
+   tables is the same projector that was showing the scores. They are read, not
+   watched: no per-field split, no ticking numbers, and the only motion is the
+   clock screen's own seconds. */
+
+.disp__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  overflow: auto;
+  padding: clamp(var(--space-4), 2.6vw, var(--space-7));
+}
+
+.dsp {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The three "one statement" screens centre their content rather than filling
+   the frame top-down: a Pause notice pinned to the top of a wall reads as a
+   page that failed to load. */
+.dsp--pause,
+.dsp--logo,
+.dsp--clock {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-5);
+}
+
+.dsp__headline {
+  font-size: clamp(3rem, 15vw, 12rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  /* Clock amber: the same signal the paused match clocks use, so "paused" reads
+     the same colour everywhere in the hall. Paired with the word itself, never
+     carried by hue alone. */
+  color: var(--warn);
+}
+
+.dsp__subject {
+  font-size: clamp(1rem, 2.2vw, 2rem);
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.dsp__message {
+  max-width: 26ch;
+  margin: 0;
+  font-size: clamp(1.3rem, 3.6vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+/* --- logo --- */
+
+.dsp__logo {
+  max-width: min(72vw, 900px);
+  max-height: 46vh;
+  object-fit: contain;
+}
+
+.dsp__logo-name {
+  font-size: clamp(1.3rem, 3.2vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* --- clock --- */
+
+.dsp__clock {
+  font-size: clamp(3.5rem, 17vw, 15rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.dsp__clock-date {
+  font-size: clamp(1rem, 2.2vw, 2rem);
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* The match clocks under the wall clock. This is what makes the clock screen
+   more than a bigger copy of the time already printed in the footer. */
+.dsp__clocks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dsp__clocks-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.dsp__clocks-field {
+  font-size: var(--step--1);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.dsp__clocks-match {
+  font-weight: 650;
+}
+
+.dsp__clocks-time {
+  font-size: clamp(1.3rem, 2.6vw, 2.2rem);
+  font-weight: 800;
+}
+
+/* --- standings and running order --- */
+
+.dsp__title {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.2vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dsp__tables {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.dsp__results-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+
+/* The projector table is the same object as the page table, set for ten metres:
+   rows taller and figures heavier, but no second table built for the screen. */
+.dsp-table {
+  width: 100%;
+  font-size: clamp(0.95rem, 1.5vw, 1.4rem);
+}
+
+.dsp-table th,
+.dsp-table td {
+  padding: clamp(var(--space-2), 0.7vw, var(--space-3)) clamp(var(--space-3), 1vw, var(--space-4));
+}
+
+.dsp-table .crest,
+.dsp-table .crest img {
+  width: 28px;
+  height: 28px;
+}
+
+.dsp-fixture {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dsp-fixture__winner {
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  /* A phone is not a projector: the headline sizes come down, and the running
+     order drops its field column rather than wrapping every row. */
+  .dsp__headline {
+    font-size: clamp(2.4rem, 18vw, 5rem);
+  }
+
+  .dsp-table--fixtures th:last-child,
+  .dsp-table--fixtures td:last-child {
+    display: none;
+  }
+}
+
 .disp-idle {
   flex: 1 1 auto;
   display: flex;

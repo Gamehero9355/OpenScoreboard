@@ -13,6 +13,7 @@ import { useI18n } from '../lib/useI18n';
 import { cx } from '../lib/util';
 import { Badge, Button, ConnectionBadge, useMatchStateLabel, useTournamentStatusLabel } from '../components/primitives';
 import { clockCaption, DisplayArena, DisplayRows, MatchClock } from '../components/scoreboard';
+import { DisplayScreenView } from '../components/displayScreens';
 import { IconCollapse, IconContrast, IconExpand, IconEye } from '../components/icons';
 
 export function DisplayPage({ view }: { view: string }) {
@@ -27,6 +28,15 @@ export function DisplayPage({ view }: { view: string }) {
 
   const available = state ? fieldIds(state) : [];
   const fields = view === 'both' ? available : available.includes(view) ? [view] : [view];
+  /**
+   * Which screen is up. `scores` is the board this page has always drawn; any
+   * other value replaces it with a hall-wide screen. The host and the field
+   * operators switch it from their dashboards, and it arrives here as ordinary
+   * settings state, so a projector that reconnects lands on the right screen.
+   * An older snapshot without the field reads as the score board.
+   */
+  const screen = state?.settings.displayScreen ?? 'scores';
+  const boardVisible = screen === 'scores';
 
   return (
     <div
@@ -49,6 +59,15 @@ export function DisplayPage({ view }: { view: string }) {
         </span>
       </header>
 
+      {!boardVisible ? (
+        <div className="disp__stage">
+          {state ? (
+            <DisplayScreenView screen={screen} state={state} />
+          ) : (
+            <div className="disp-idle">{t('disp.waiting')}</div>
+          )}
+        </div>
+      ) : (
       <div
         className={cx(
           'disp__grid',
@@ -107,6 +126,7 @@ export function DisplayPage({ view }: { view: string }) {
           );
         })}
       </div>
+      )}
 
       <footer className="disp__foot">
         <span>
@@ -125,29 +145,36 @@ export function DisplayPage({ view }: { view: string }) {
             header and in a fixed corner button, which collided with the field
             switcher at 720p and made a narrow header wrap its own field name. */}
         <span className="row g2 disp__foot-controls">
-          <span className="row g2 no-print">
-            <Button
-              size="sm"
-              tone="ghost"
-              onClick={() => {
-                window.location.href = '/display';
-              }}
-            >
-              {t('disp.allFields')}
-            </Button>
-            {available.map((fieldId) => (
+          {/* The field switcher is only meaningful on the score board. On a
+              hall-wide screen it would be a control that visibly does nothing,
+              so the footer names the screen instead. */}
+          {boardVisible ? (
+            <span className="row g2 no-print">
               <Button
-                key={fieldId}
                 size="sm"
                 tone="ghost"
                 onClick={() => {
-                  window.location.href = `/display/${fieldId}`;
+                  window.location.href = '/display';
                 }}
               >
-                {state?.fields[fieldId]?.name ?? t('field.label', { n: fieldId })}
+                {t('disp.allFields')}
               </Button>
-            ))}
-          </span>
+              {available.map((fieldId) => (
+                <Button
+                  key={fieldId}
+                  size="sm"
+                  tone="ghost"
+                  onClick={() => {
+                    window.location.href = `/display/${fieldId}`;
+                  }}
+                >
+                  {state?.fields[fieldId]?.name ?? t('field.label', { n: fieldId })}
+                </Button>
+              ))}
+            </span>
+          ) : (
+            <Badge tone="accent">{t(`display.screen.${screen}` as MessageKey)}</Badge>
+          )}
           <span className="row g2 no-print">
             <Button
               className="disp-tool"

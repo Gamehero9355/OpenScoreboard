@@ -142,14 +142,13 @@ function FieldQrCodes({
 function FieldQrTile({ link, title, hint }: { link: JoinLink; title: string; hint: string }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const shown = link.url.replace(/#t=.*$/, '');
   return (
     <div className="stack g2">
       <span className="tiny dim">{title}</span>
       <QrCode text={link.url} compact alt={t('fc.qrAlt', { title })} />
       <p className="hint">{hint}</p>
       <CopyableUrl
-        url={shown}
+        url={link.url}
         label={copied ? t('fc.copied') : t('fc.copyLink')}
         onCopied={(ok) => {
           setCopied(ok);

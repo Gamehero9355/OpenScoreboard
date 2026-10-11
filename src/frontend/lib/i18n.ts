@@ -1403,6 +1403,22 @@ const en = {
   'disp.exitFullscreen': 'Exit fullscreen',
   'disp.exit': 'Exit',
 
+  /* --- the screens a projector can be switched to --- */
+  'display.title': 'Display screen',
+  'display.short': 'Display',
+  'display.hint': 'Switches what every projector and TV shows. Applies to the whole hall.',
+  'display.messagePlaceholder': 'Message for the screen',
+  'display.messageLabel': 'Message shown on the screen',
+  'display.setMessage': 'Show message',
+  'display.pause': 'Pause',
+  'display.spielplan': 'Schedule & results',
+  'display.screen.scores': 'Scores',
+  'display.screen.pause': 'Pause',
+  'display.screen.logo': 'Logo',
+  'display.screen.clock': 'Clock',
+  'display.screen.standings': 'Standings',
+  'display.screen.results': 'Schedule',
+
   /* --- field operator screen --- */
   'op.controlledByOther': 'This field is controlled by another device.',
   'op.lockedByOther': 'Another device is controlling this field.',
@@ -1429,6 +1445,7 @@ const en = {
   'op.autoLoadOn': 'Auto-load next match is on — the next match appears here by itself.',
   'op.bracketUpdated': 'The bracket has been updated on every screen.',
   'op.nextAvailable': 'Next available match',
+  'op.recentActions': 'Recent scoring actions',
   'op.nothingElseReady': 'Nothing else is ready right now.',
   'op.startNext': 'Start next match',
   'op.unlockTitle': 'Unlock this field',
@@ -2851,6 +2868,22 @@ const de: Record<MessageKey, string> = {
   'disp.exitFullscreen': 'Vollbild beenden',
   'disp.exit': 'Beenden',
 
+  /* --- die Bildschirme, auf die ein Projektor umgeschaltet werden kann --- */
+  'display.title': 'Anzeige-Bildschirm',
+  'display.short': 'Anzeige',
+  'display.hint': 'Schaltet um, was alle Projektoren und Fernseher zeigen. Gilt für die ganze Halle.',
+  'display.messagePlaceholder': 'Text für den Bildschirm',
+  'display.messageLabel': 'Text auf dem Bildschirm',
+  'display.setMessage': 'Text anzeigen',
+  'display.pause': 'Pause',
+  'display.spielplan': 'Spielplan & Ergebnisse',
+  'display.screen.scores': 'Spielstand',
+  'display.screen.pause': 'Pause',
+  'display.screen.logo': 'Logo',
+  'display.screen.clock': 'Uhr',
+  'display.screen.standings': 'Tabellen',
+  'display.screen.results': 'Spielplan',
+
   /* --- field operator screen --- */
   'op.controlledByOther': 'Dieser Platz wird von einem anderen Gerät bedient.',
   'op.lockedByOther': 'Ein anderes Gerät bedient diesen Platz.',
@@ -2877,6 +2910,7 @@ const de: Record<MessageKey, string> = {
   'op.autoLoadOn': 'Automatisches Laden ist an — das nächste Match erscheint hier von selbst.',
   'op.bracketUpdated': 'Der Turnierbaum wurde auf allen Anzeigen aktualisiert.',
   'op.nextAvailable': 'Nächstes verfügbares Match',
+  'op.recentActions': 'Letzte Punkteingaben',
   'op.nothingElseReady': 'Sonst ist gerade nichts bereit.',
   'op.startNext': 'Nächstes Match starten',
   'op.unlockTitle': 'Diesen Platz freischalten',

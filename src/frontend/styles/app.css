@@ -92,12 +92,45 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
+  /* A scroll container has a zero min-content width, but without this the nav
+     still refuses to shrink below its items and pushes the whole bar wide. */
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 .nav::-webkit-scrollbar {
   display: none;
+}
+
+/* Below this the nine destination items no longer fit beside the brand, so the
+   nav drops to its own full-width row. A full row shows five items at once and
+   scrolls for the rest, instead of hiding them behind a clipped strip. */
+@media (max-width: 1180px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+  }
+  .nav {
+    order: 3;
+    flex: 1 1 100%;
+  }
+}
+
+/* On a phone even a full-width row cannot show nine labels, so the nav becomes
+   the icon strip every app uses: every destination reachable at a glance, the
+   name still on every item as its label and tooltip. */
+@media (max-width: 560px) {
+  .nav {
+    justify-content: space-between;
+  }
+  .nav__item {
+    padding: 0 var(--space-2);
+  }
+  .nav__label {
+    display: none;
+  }
 }
 
 .nav__item {
@@ -1057,6 +1090,39 @@
   gap: var(--space-1);
 }
 
+/* On a phone the row cannot hold an index, both names and an assign button:
+   the actions drop to their own line under the match instead of squeezing
+   "Team Charlie vs Team Alpha" into 70 pixels. */
+@media (max-width: 640px) {
+  .queue__item {
+    grid-template-columns: 26px minmax(0, 1fr);
+    row-gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+  .queue__index {
+    grid-row: 1;
+  }
+  .queue__match {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .queue__actions {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+  /* The two teams' scoring keys take a full-width row each: four wide targets
+     in one line instead of two ragged half-rows per team. */
+  .score__controls {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+  }
+  .score__controls > :first-child,
+  .score__controls > :last-child {
+    grid-column: 1;
+  }
+}
+
 /* Heading of the second half of a field's queue: the pairings either field may
    host, listed under that field's own matches. */
 .list-divider {
@@ -1410,15 +1476,29 @@
 .statusbar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--bg-elevated);
   font-size: var(--step--1);
   color: var(--text-dim);
-  flex-wrap: wrap;
   box-shadow: var(--shadow-1);
+}
+.statusbar__group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+/* An auto margin, not a spacer element: when the second group wraps to its own
+   line the spacer would stay behind on the first one and leave state and age
+   stranded at the left edge. */
+.statusbar__group:last-child {
+  margin-left: auto;
 }
 .statusbar__item {
   display: flex;
@@ -1525,9 +1605,11 @@
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 .url__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* A LAN address is the thing the host reads out loud, so it wraps and shows
+     in full instead of trailing off into an ellipsis. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -1679,6 +1761,19 @@
 }
 .compact-list__row:last-child {
   border-bottom: 0;
+}
+/* In a compact row only the .grow element gives way. A field name, a time, a
+   score or a badge is short by nature and must never read "FIEL..." or
+   "15:46:..." -- the long text in the middle is what truncates. */
+.compact-list__row > .tiny,
+.compact-list__row > .small,
+.compact-list__row > .mono,
+.compact-list__row > .badge {
+  flex: none;
+}
+.compact-list__row > .nowrap {
+  min-width: 0;
+  max-width: 16rem;
 }
 .compact-list__row--link {
   cursor: pointer;

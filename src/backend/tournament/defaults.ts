@@ -17,6 +17,10 @@ export const DEFAULT_SETTINGS: Settings = {
   logoDataUrl: null,
   showSponsorBar: true,
   invertDisplayColors: false,
+  // The score board is the display's default: a hall that never opens the new
+  // screen switcher sees exactly the board it has always seen.
+  displayScreen: 'scores',
+  displayMessage: null,
   defaultMatchDurationSec: 180,
   scoringIncrements: [1, 2, 3],
   winCondition: 'manual',
