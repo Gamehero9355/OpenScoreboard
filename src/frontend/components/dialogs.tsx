@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { FieldId, Match, TournamentState } from '../../shared/types';
-import { fieldIds, isRealMatch, nameOf, waitingReason } from '../../shared/matchUtils';
+import { fieldDisplayName, fieldIds, isRealMatch, nameOf, waitingReason } from '../../shared/matchUtils';
 import { live } from '../lib/live';
 import { useLive } from '../lib/hooks';
 import { asTranslate, useI18n } from '../lib/useI18n';
@@ -126,7 +126,7 @@ export function EndMatchDialog({
       <div className="stack g3">
         <p className="small dim">
           {match.roundName} · {t('dialog.matchLabel', { n: match.position + 1 })}
-          {match.fieldId ? ` · ${state?.fields[match.fieldId]?.name ?? ''}` : ''}
+          {match.fieldId && state ? ` · ${fieldDisplayName(state.fields[match.fieldId]?.name, match.fieldId, asTranslate(t))}` : ''}
           {isDecision ? t('dialog.mustProduceWinner') : ''}
         </p>
         <div className="stack g1">
@@ -367,7 +367,7 @@ export function ManualOverrideDialog({ match, onClose }: { match: Match; onClose
     if (!fieldId) return '';
     const index = Number(fieldId) - 1;
     const name = state.settings.fieldNames[index];
-    return ` · ${name ?? t('field.label', { n: fieldId })}`;
+    return ` · ${fieldDisplayName(name, fieldId, asTranslate(t))}`;
   };
 
   const submit = async () => {
@@ -558,7 +558,7 @@ export function ManualScheduleDialog({ match, onClose }: { match: Match | null; 
   const homeField = (fieldId: string | null): string => {
     if (!fieldId) return '';
     const index = Number(fieldId) - 1;
-    return ` · ${state.settings.fieldNames[index] ?? t('field.label', { n: fieldId })}`;
+    return ` · ${fieldDisplayName(state.settings.fieldNames[index], fieldId, asTranslate(t))}`;
   };
 
   return (
@@ -617,7 +617,7 @@ export function ManualScheduleDialog({ match, onClose }: { match: Match | null; 
             <option value="">{t('setup.scheduleFieldAny')}</option>
             {fieldIds(state).map((fieldId) => (
               <option key={fieldId} value={fieldId}>
-                {state.fields[fieldId]?.name ?? t('field.label', { n: fieldId })}
+                {fieldDisplayName(state.fields[fieldId]?.name, fieldId, asTranslate(t))}
               </option>
             ))}
           </select>

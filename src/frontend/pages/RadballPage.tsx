@@ -13,7 +13,7 @@
 import { useMemo, useState } from 'react';
 import type { Match, TournamentState } from '../../shared/types';
 import { radballDecisionSec, radballMatchSec } from '../../shared/types';
-import { nameOf } from '../../shared/matchUtils';
+import { fieldDisplayName, nameOf } from '../../shared/matchUtils';
 import {
   competitionProgress,
   decisionReasonLabel,
@@ -328,7 +328,11 @@ function ScheduleRow({
         {meta?.kind === 'decision' ? <span className="rb-tag">{t('round.decision')}</span> : null}
         {meta?.shootout ? <span className="rb-tag rb-tag--shootout">{t('radball.shootout')}</span> : null}
       </span>
-      {match.fieldId ? <span className="tiny faint nowrap">{state.fields[match.fieldId]?.name}</span> : null}
+      {match.fieldId ? (
+        <span className="tiny faint nowrap">
+          {fieldDisplayName(state.fields[match.fieldId]?.name, match.fieldId, asTranslate(t))}
+        </span>
+      ) : null}
       {match.state === 'FINISHED' ? (
         <>
           <span className="small tnum nowrap">

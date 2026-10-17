@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import type { FieldId, JoinLink, Match, TournamentState } from '../../shared/types';
-import { homeFieldOf, nameOf, isRealMatch, waitingReason } from '../../shared/matchUtils';
+import { fieldDisplayName, homeFieldOf, nameOf, isRealMatch, waitingReason } from '../../shared/matchUtils';
 import { asTranslate, useI18n } from '../lib/useI18n';
 import { live } from '../lib/live';
 import { cx, formatTime, keyOf } from '../lib/util';
@@ -38,7 +38,7 @@ export function FieldCard(props: FieldCardProps) {
   const match = field.matchId ? state.matches[field.matchId] ?? null : null;
 
   return (
-    <section className="field" aria-label={field.name}>
+    <section className="field" aria-label={fieldDisplayName(field.name, fieldId, asTranslate(t))}>
       <FieldTitleBar
         state={state}
         fieldId={fieldId}
@@ -68,7 +68,7 @@ export function FieldCard(props: FieldCardProps) {
           operatorLink={props.controlLink ?? null}
           displayLink={props.displayLink ?? null}
           hasTournament={Boolean(state.tournament)}
-          fieldName={field.name}
+          fieldName={fieldDisplayName(field.name, fieldId, asTranslate(t))}
         />
       </div>
     </section>
@@ -420,10 +420,12 @@ export function FieldSummary({ state, fieldId }: { state: TournamentState; field
   const { t } = useI18n();
   const field = state.fields[fieldId];
   const match = field.matchId ? state.matches[field.matchId] ?? null : null;
-  if (!match) return <Empty>{`${field.name} ${t('field.free')}`}</Empty>;
+  if (!match) {
+    return <Empty>{`${fieldDisplayName(field.name, fieldId, asTranslate(t))} ${t('field.free')}`}</Empty>;
+  }
   return (
     <div className="compact-list__row">
-      <span className="tiny faint nowrap">{field.name}</span>
+      <span className="tiny faint nowrap">{fieldDisplayName(field.name, fieldId, asTranslate(t))}</span>
       <span className="grow nowrap">
         {nameOf(state, match.participantAId)} <span className="faint">vs</span>{' '}
         {nameOf(state, match.participantBId)}

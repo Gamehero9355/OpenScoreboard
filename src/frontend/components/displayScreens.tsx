@@ -14,7 +14,7 @@
  */
 import { useMemo } from 'react';
 import type { Match, TournamentState } from '../../shared/types';
-import { logoOf, nameOf } from '../../shared/matchUtils';
+import { fieldDisplayName, logoOf, nameOf } from '../../shared/matchUtils';
 import { computeResults } from '../../shared/stats';
 import { useNow } from '../lib/hooks';
 import { intlTag } from '../lib/i18n';
@@ -27,12 +27,21 @@ import { TeamCrest, CrestWithName } from './TeamCrest';
 import { RadballStandings } from './RadballStandings';
 
 /** The screens this file knows how to draw. `scores` is drawn by `DisplayPage`. */
-export function DisplayScreenView({ screen, state }: { screen: string; state: TournamentState }) {
+export function DisplayScreenView({
+  screen,
+  state,
+  message,
+}: {
+  screen: string;
+  state: TournamentState;
+  message?: string | null;
+}) {
+  const resolved = message !== undefined ? message : (state.settings.displayMessage ?? null);
   switch (screen) {
     case 'pause':
-      return <PauseScreen state={state} />;
+      return <PauseScreen state={state} message={resolved} />;
     case 'logo':
-      return <LogoScreen state={state} />;
+      return <LogoScreen state={state} message={resolved} />;
     case 'clock':
       return <ClockScreen state={state} />;
     case 'standings':
@@ -49,28 +58,28 @@ function tournamentName(state: TournamentState): string {
   return state.tournament?.name ?? state.settings.tournamentName;
 }
 
-function PauseScreen({ state }: { state: TournamentState }) {
+function PauseScreen({ state, message }: { state: TournamentState; message?: string | null }) {
   const { t } = useI18n();
-  const message = state.settings.displayMessage?.trim();
+  const text = (message ?? state.settings.displayMessage ?? '').trim();
   return (
     <div className="dsp dsp--pause">
       <span className="dsp__headline">{t('display.pause')}</span>
       <span className="dsp__subject">{tournamentName(state)}</span>
-      {message ? <p className="dsp__message">{message}</p> : null}
+      {text ? <p className="dsp__message">{text}</p> : null}
     </div>
   );
 }
 
-function LogoScreen({ state }: { state: TournamentState }) {
+function LogoScreen({ state, message }: { state: TournamentState; message?: string | null }) {
   const { t } = useI18n();
-  const message = state.settings.displayMessage?.trim();
+  const text = (message ?? state.settings.displayMessage ?? '').trim();
   return (
     <div className="dsp dsp--logo">
       {/* The host's uploaded crest, or the app's own mark. Never a remote
           asset: the venue WLAN is the only network there is. */}
       <img className="dsp__logo" src={state.settings.logoDataUrl ?? '/favicon.svg'} alt="" />
       <span className="dsp__logo-name">{tournamentName(state) || t('app.name')}</span>
-      {message ? <p className="dsp__message">{message}</p> : null}
+      {text ? <p className="dsp__message">{text}</p> : null}
     </div>
   );
 }
@@ -111,7 +120,7 @@ function ClockScreen({ state }: { state: TournamentState }) {
           {running.map((match) => (
             <li className="dsp__clocks-row" key={match.id}>
               <span className="dsp__clocks-field">
-                {match.fieldId ? state.fields[match.fieldId]?.name ?? t('field.label', { n: match.fieldId }) : ''}
+                {match.fieldId ? fieldDisplayName(state.fields[match.fieldId]?.name, match.fieldId, asTranslate(t)) : ''}
               </span>
               <span className="dsp__clocks-match">
                 {nameOf(state, match.participantAId)} <span className="faint">vs</span>{' '}
@@ -254,7 +263,9 @@ function ResultsScreen({ state }: { state: TournamentState }) {
                     {started ? `${match.scoreA} : ${match.scoreB}` : <MatchStateBadge state={match.state} />}
                   </td>
                   <td className="dim nowrap">
-                    {match.fieldId ? state.fields[match.fieldId]?.name ?? t('field.label', { n: match.fieldId }) : '—'}
+                    {match.fieldId
+                      ? fieldDisplayName(state.fields[match.fieldId]?.name, match.fieldId, asTranslate(t))
+                      : '—'}
                   </td>
                 </tr>
               );

@@ -53,7 +53,7 @@ export function ResultsPage() {
   // the way the rest of the page does: the match history below it is already
   // newest-first, and during an event the fixture on a field right now is at the
   // top of the list instead of at the bottom of a 46vh scroll box.
-  const games = useMemo(() => (state ? [...competitionFixtures(state)].reverse() : []), [state]);
+  const games = useMemo(() => state ? [...competitionFixtures(state)].sort((a,b) => (b.finishedAt ?? b.startedAt ?? 0)-(a.finishedAt ?? a.startedAt ?? 0)) : [], [state]);
 
   const history = useMemo(() => {
     if (!state) return [];
@@ -352,7 +352,7 @@ function GamesTable({ state, games }: { state: TournamentState; games: Match[] }
           </tr>
         </thead>
         <tbody>
-          {games.map((match, index) => {
+          {games.map((match) => {
             // A level 0:0 has not been played, and an unplayed fixture says so
             // with its state badge -- printing 0 : 0 for it would read as a
             // goalless draw that never happened.
@@ -362,7 +362,7 @@ function GamesTable({ state, games }: { state: TournamentState; games: Match[] }
             // game 1 at the bottom reading "1" -- otherwise the top row would
             // read "1" and the last game played would read "20" as if it were
             // the first.
-            const number = games.length - index;
+            const number = competitionFixtures(state).findIndex((m) => m.id === match.id) + 1;
             return (
               <tr key={match.id}>
                 <td className="num faint tnum">{number}</td>

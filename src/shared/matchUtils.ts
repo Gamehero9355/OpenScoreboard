@@ -1,4 +1,4 @@
-import type { FieldId, Match, MatchState, Participant, TimerState, TournamentState } from './types';
+import { defaultFieldNames, type FieldId, type Match, type MatchState, type Participant, type TimerState, type TournamentState } from './types';
 
 /**
  * A match that was actually played. Byes and cancelled matches are part of the
@@ -92,19 +92,49 @@ export function teamOf(state: TournamentState, id: string | null): string | null
   return state.participants[id]?.team ?? null;
 }
 
-export function timerMs(timer: TimerState, now: number): number {
+/**
+ * One half's length in seconds, falling back to the match length divided by the
+ * halves for a timer that predates the field.
+ */
+function periodDurationSecOf(timer: TimerState): number {
+  if (Number.isFinite(timer.periodDurationSec)) return timer.periodDurationSec;
   const durationSec = Number.isFinite(timer.durationSec) ? timer.durationSec : 0;
-  const periodCount = timer.periodCount === 1 ? 1 : 2;
-  const periodDurationSec = Number.isFinite(timer.periodDurationSec)
-    ? timer.periodDurationSec
-    : durationSec / periodCount;
-  const periodStartElapsedMs = Number.isFinite(timer.periodStartElapsedMs) ? timer.periodStartElapsedMs : 0;
+  return durationSec / (timer.periodCount === 1 ? 1 : 2);
+}
+
+/** Milliseconds played in the match, including the segment still running. */
+function timerElapsedMs(timer: TimerState, now: number): number {
   const elapsedMs = Number.isFinite(timer.elapsedMs) ? timer.elapsedMs : 0;
-  const elapsed =
-    timer.running && timer.anchorAt !== null ? elapsedMs + Math.max(0, now - timer.anchorAt) : elapsedMs;
-  const periodElapsed = Math.max(0, elapsed - periodStartElapsedMs);
-  if (timer.mode === 'down') return Math.max(0, periodDurationSec * 1000 - periodElapsed);
-  return Math.max(0, elapsed);
+  if (!timer.running || timer.anchorAt === null) return Math.max(0, elapsedMs);
+  return Math.max(0, elapsedMs + Math.max(0, now - timer.anchorAt));
+}
+
+/** Milliseconds played in the current half. */
+function timerPeriodElapsedMs(timer: TimerState, now: number): number {
+  const periodStart = Number.isFinite(timer.periodStartElapsedMs) ? timer.periodStartElapsedMs : 0;
+  return Math.max(0, timerElapsedMs(timer, now) - periodStart);
+}
+
+/** Seconds played in the current half. The same number in either clock mode. */
+export function periodElapsedSec(timer: TimerState, now: number): number {
+  return Math.max(0, timerPeriodElapsedMs(timer, now) / 1000);
+}
+
+/**
+ * Seconds the field still has for the current half.
+ *
+ * For a countdown this *is* the number on the board, which is what makes it the
+ * right thing to hand an operator who is being asked to retype that number: the
+ * box and the wall clock then read the same. For a count-up it is the time the
+ * half still has to run, because the counter on the board has already spent it.
+ */
+export function periodLeftSec(timer: TimerState, now: number): number {
+  return Math.max(0, periodDurationSecOf(timer) - periodElapsedSec(timer, now));
+}
+
+export function timerMs(timer: TimerState, now: number): number {
+  if (timer.mode === 'down') return Math.max(0, periodLeftSec(timer, now) * 1000);
+  return Math.max(0, timerElapsedMs(timer, now));
 }
 
 export function clock(timer: TimerState, now: number): string {
@@ -390,6 +420,27 @@ export function firstFieldMatchId(state: TournamentState): string | null {
  * typed `t` to this looser signature in one place instead of at every call site.
  */
 export type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+/**
+ * The name a playing field is shown under.
+ *
+ * Stored field names default to the English "Field 1", "Field 2", ... so a
+ * host who never renamed them would otherwise read English in a German hall.
+ * A name the host typed is their own wording and passes through untouched;
+ * only an untouched default is rendered in the reader's language, and a
+ * missing name reads as the translated label -- the same fallback every call
+ * site already used. Callers pass `asTranslate(t)`, same as `waitingReason`.
+ */
+export function fieldDisplayName(stored: unknown, fieldId: string, t?: Translate): string {
+  const say: Translate =
+    t ?? ((key, params) => (key === 'field.label' && params?.n !== undefined ? `Field ${params.n}` : key));
+  if (typeof stored === 'string' && stored.trim() !== '') {
+    const n = Number(fieldId);
+    const builtin = Number.isInteger(n) && n >= 1 ? defaultFieldNames(n)[n - 1] : undefined;
+    if (stored !== builtin) return stored;
+  }
+  return say('field.label', { n: fieldId });
+}
 
 /** Human readable "next up" description for a match that is still waiting. */
 export function waitingReason(state: TournamentState, match: Match, t?: Translate): string | null {

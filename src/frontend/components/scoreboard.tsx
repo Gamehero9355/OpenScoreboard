@@ -4,7 +4,7 @@
  * keeps the numbers identical on every screen.
  */
 import type { FieldId, Match, TournamentState } from '../../shared/types';
-import { isRealMatch, logoOf, nameOf, teamOf, waitingReason } from '../../shared/matchUtils';
+import { fieldDisplayName, isRealMatch, logoOf, nameOf, teamOf, waitingReason } from '../../shared/matchUtils';
 import { useMatchClock } from '../lib/hooks';
 import type { MessageKey } from '../lib/i18n';
 import { asTranslate, useI18n } from '../lib/useI18n';
@@ -122,7 +122,7 @@ export function ScoreBlock({
         ) : (
           <span className="score__sep">vs</span>
         )}
-        <span className="tiny faint">{clockCaption(match, t)}</span>
+        <span className="tiny faint score__caption">{clockCaption(match, t)}</span>
       </div>
       <div className={cx('score__side', 'score__side--b', leader === 'B' && 'score__side--leading')}>
         <TeamCrest logo={b.logo} size="sm" />
@@ -322,7 +322,7 @@ export function FieldTitleBar({
   return (
     <header className="field__head">
       <div className="row g3" style={{ minWidth: 0 }}>
-        <span className="field__name">{field.name}</span>
+        <span className="field__name">{fieldDisplayName(field.name, fieldId, asTranslate(t))}</span>
         {match ? (
           <span className="field__meta">
             {match.roundName} · {t('dialog.matchLabel', { n: match.position + 1 })}

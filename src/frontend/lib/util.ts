@@ -232,6 +232,30 @@ export function formatDurationInput(seconds: number): string {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+/** The range `match.setTimer` accepts for a whole match, in seconds. */
+export const MATCH_MIN_SEC = 1;
+export const MATCH_MAX_SEC = 24 * 60 * 60;
+
+/**
+ * The match duration that leaves `leftSec` for the half in progress.
+ *
+ * The operator is shown the time the field still has -- for a countdown that is
+ * the very number on the wall clock -- so what they retype has to mean the same
+ * thing it just read: the time left, not the length of the half. The part of the
+ * half that has already been played is added back, because it has already been
+ * played and cannot be un-played.
+ *
+ * The total is rounded *up*, which is what makes the promise hold to the second:
+ * the board prints whole seconds by truncation, so a total that fell a fraction
+ * short would leave the clock reading 3:59 after someone asked for 4:00. The
+ * surplus is under half a second per half and never shows.
+ */
+export function durationForTimeLeft(leftSec: number, periodCount: number, elapsedSec: number): number {
+  const halves = periodCount === 1 ? 1 : 2;
+  const wanted = Math.round(leftSec) * halves + Math.max(0, elapsedSec);
+  return clampNumber(Math.ceil(wanted), MATCH_MIN_SEC, MATCH_MAX_SEC);
+}
+
 /** The scoring buttons a bracket offers, or null when the box is unusable. */
 export function parseScoringIncrements(raw: string): number[] | null {
   const values = raw

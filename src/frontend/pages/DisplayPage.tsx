@@ -6,21 +6,20 @@
  * ticks locally from the server's anchor so a hundred screens cost one message,
  * not a hundred.
  */
-import { fieldIds, isRealMatch, nameOf } from '../../shared/matchUtils';
+import { fieldDisplayName, fieldIds, isRealMatch, nameOf } from '../../shared/matchUtils';
+import { displayMessageFor, displayScreenFor } from '../../shared/types';
 import { useFullscreen, useLive, useLocalStorage, useWakeLock } from '../lib/hooks';
-import { formatTime, type MessageKey } from '../lib/i18n';
-import { useI18n } from '../lib/useI18n';
+import { asTranslate, useI18n } from '../lib/useI18n';
 import { cx } from '../lib/util';
-import { Badge, Button, ConnectionBadge, useMatchStateLabel, useTournamentStatusLabel } from '../components/primitives';
+import { Button, useMatchStateLabel } from '../components/primitives';
 import { clockCaption, DisplayArena, DisplayRows, MatchClock } from '../components/scoreboard';
 import { DisplayScreenView } from '../components/displayScreens';
-import { IconCollapse, IconContrast, IconExpand, IconEye } from '../components/icons';
+import { IconCollapse, IconContrast, IconExpand } from '../components/icons';
 
 export function DisplayPage({ view }: { view: string }) {
   const snapshot = useLive();
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const stateLabel = useMatchStateLabel();
-  const statusLabel = useTournamentStatusLabel();
   const state = snapshot.state;
   const fullscreen = useFullscreen();
   const [invert, setInvert] = useLocalStorage('tsb.disp.invert', false);
@@ -29,13 +28,17 @@ export function DisplayPage({ view }: { view: string }) {
   const available = state ? fieldIds(state) : [];
   const fields = view === 'both' ? available : available.includes(view) ? [view] : [view];
   /**
-   * Which screen is up. `scores` is the board this page has always drawn; any
-   * other value replaces it with a hall-wide screen. The host and the field
-   * operators switch it from their dashboards, and it arrives here as ordinary
-   * settings state, so a projector that reconnects lands on the right screen.
-   * An older snapshot without the field reads as the score board.
+   * Which screen is up. Each field display (`/display/1`, ...) follows its own
+   * per-field value and falls back to the hall-wide one, so Field 1 can show
+   * the game while Field 2 shows the clock or the standings. The combined
+   * display (`/display`) follows the hall-wide value. The host and the field
+   * operators switch them from their dashboards, and they arrive here as
+   * ordinary settings state, so a projector that reconnects lands on the right
+   * screen. An older snapshot without the field reads as the score board.
    */
-  const screen = state?.settings.displayScreen ?? 'scores';
+  const target = view === 'both' ? 'both' : view;
+  const screen = state?.settings ? displayScreenFor(state.settings, target) : 'scores';
+  const screenMessage = state?.settings ? displayMessageFor(state.settings, target) : null;
   const boardVisible = screen === 'scores';
 
   return (
@@ -47,22 +50,10 @@ export function DisplayPage({ view }: { view: string }) {
         !state?.tournament && 'disp--idle',
       )}
     >
-      <header className="disp__top">
-        <span className="disp__title">{state?.tournament?.name ?? state?.settings.tournamentName ?? t('app.name')}</span>
-        <span className="row g3">
-          <span className="disp__hint">
-            {state?.tournament
-              ? `${t(`format.${state.tournament.format}` as MessageKey)} · ${statusLabel(state.tournament.status)}`
-              : t('err.noTournament')}
-          </span>
-          <ConnectionBadge />
-        </span>
-      </header>
-
       {!boardVisible ? (
         <div className="disp__stage">
           {state ? (
-            <DisplayScreenView screen={screen} state={state} />
+            <DisplayScreenView screen={screen} state={state} message={screenMessage} />
           ) : (
             <div className="disp-idle">{t('disp.waiting')}</div>
           )}
@@ -81,9 +72,9 @@ export function DisplayPage({ view }: { view: string }) {
           const field = state?.fields[fieldId];
           const match = field?.matchId ? state?.matches[field.matchId] ?? null : null;
           return (
-            <section className="disp-board" key={fieldId} aria-label={field?.name ?? t('field.label', { n: fieldId })}>
+            <section className="disp-board" key={fieldId} aria-label={fieldDisplayName(field?.name, fieldId, asTranslate(t))}>
               <header className="disp-board__head">
-                <span className="disp-board__field">{field?.name ?? t('field.label', { n: fieldId })}</span>
+                <span className="disp-board__field">{fieldDisplayName(field?.name, fieldId, asTranslate(t))}</span>
                 <span className="disp-board__meta">
                   {match ? (
                     <>
@@ -128,84 +119,60 @@ export function DisplayPage({ view }: { view: string }) {
       </div>
       )}
 
-      <footer className="disp__foot">
-        <span>
-          {snapshot.connection === 'live'
-            ? snapshot.reconnects === 0
-              ? t('conn.live')
-              : `${t('conn.live')} · ${snapshot.reconnects} ${t('diag.reconnects')}`
-            : snapshot.connection === 'connecting'
-              ? t('conn.connecting')
-              : snapshot.connection === 'reconnecting'
-                ? t('conn.reconnecting')
-                : t('conn.offline')}
+      {/* No status bar: the board gets the full height. The three tools a TV
+          actually needs -- field switcher, lights, fullscreen -- live in one
+          dimmed cluster that turns solid on hover or focus. */}
+      <div className="disp-tools no-print">
+        <span className="row g2 wrap">
+          <Button
+            size="sm"
+            tone="ghost"
+            onClick={() => {
+              window.location.href = '/display';
+            }}
+          >
+            {t('disp.allFields')}
+          </Button>
+          {available.map((fieldId) => (
+            <Button
+              key={fieldId}
+              size="sm"
+              tone="ghost"
+              onClick={() => {
+                window.location.href = `/display/${fieldId}`;
+              }}
+            >
+              {fieldDisplayName(state?.fields[fieldId]?.name, fieldId, asTranslate(t))}
+            </Button>
+          ))}
         </span>
-        <span>{formatTime(locale, Date.now())}</span>
-        {/* Every control lives in this one cluster. They used to sit in the board
-            header and in a fixed corner button, which collided with the field
-            switcher at 720p and made a narrow header wrap its own field name. */}
-        <span className="row g2 disp__foot-controls">
-          {/* The field switcher is only meaningful on the score board. On a
-              hall-wide screen it would be a control that visibly does nothing,
-              so the footer names the screen instead. */}
-          {boardVisible ? (
-            <span className="row g2 no-print">
-              <Button
-                size="sm"
-                tone="ghost"
-                onClick={() => {
-                  window.location.href = '/display';
-                }}
-              >
-                {t('disp.allFields')}
-              </Button>
-              {available.map((fieldId) => (
-                <Button
-                  key={fieldId}
-                  size="sm"
-                  tone="ghost"
-                  onClick={() => {
-                    window.location.href = `/display/${fieldId}`;
-                  }}
-                >
-                  {state?.fields[fieldId]?.name ?? t('field.label', { n: fieldId })}
-                </Button>
-              ))}
-            </span>
-          ) : (
-            <Badge tone="accent">{t(`display.screen.${screen}` as MessageKey)}</Badge>
-          )}
-          <span className="row g2 no-print">
+        <span className="row g2">
+          <Button
+            className="disp-tool"
+            size="sm"
+            tone="ghost"
+            onClick={() => setInvert(!invert)}
+            title={t('settings.invert')}
+          >
+            <IconContrast size={14} />
+            <span className="disp-tool__label">{invert ? t('settings.themeDark') : t('settings.themeLight')}</span>
+          </Button>
+          {fullscreen.supported ? (
             <Button
               className="disp-tool"
               size="sm"
               tone="ghost"
-              onClick={() => setInvert(!invert)}
-              title={t('settings.invert')}
+              onClick={fullscreen.toggle}
+              title={fullscreen.active ? t('disp.exitFullscreen') : t('disp.enterFullscreen')}
             >
-              <IconContrast size={14} />
-              <span className="disp-tool__label">{invert ? t('settings.themeDark') : t('settings.themeLight')}</span>
+              {fullscreen.active ? <IconCollapse size={14} /> : <IconExpand size={14} />}
+              <span className="disp-tool__label">
+                {fullscreen.active ? t('disp.exit') : t('a11y.fullscreen')}
+              </span>
             </Button>
-            {fullscreen.supported ? (
-              <Button
-                className="disp-tool"
-                size="sm"
-                tone="ghost"
-                onClick={fullscreen.toggle}
-                title={fullscreen.active ? t('disp.exitFullscreen') : t('disp.enterFullscreen')}
-              >
-                {fullscreen.active ? <IconCollapse size={14} /> : <IconExpand size={14} />}
-                <span className="disp-tool__label">
-                  {fullscreen.active ? t('disp.exit') : t('a11y.fullscreen')}
-                </span>
-              </Button>
-            ) : null}
-          </span>
-          <Badge tone="neutral">
-            <IconEye size={11} /> {t('role.spectator')}
-          </Badge>
+          ) : null}
         </span>
-      </footer>
+      </div>
     </div>
   );
 }

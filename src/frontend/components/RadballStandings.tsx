@@ -7,7 +7,7 @@
  * ranks or qualification.
  */
 import type { StandingRow, TournamentState } from '../../shared/types';
-import { logoOf, nameOf } from '../../shared/matchUtils';
+import { fieldDisplayName, logoOf, nameOf } from '../../shared/matchUtils';
 import { groupNameLabel, phaseNameLabel, phaseViews, standingStatusLabel } from '../lib/radball';
 import { asTranslate, useI18n } from '../lib/useI18n';
 import { Empty, Panel } from './primitives';
@@ -48,7 +48,7 @@ export function RadballStandings({ state }: { state: TournamentState }) {
                         is what lets the two groups run in parallel, so a reader
                         checking the schedule can see it stated. */}
                     {group.fieldId
-                      ? `${state.fields[group.fieldId]?.name ?? t('field.label', { n: group.fieldId })} · `
+                      ? `${fieldDisplayName(state.fields[group.fieldId]?.name, group.fieldId, asTranslate(t))} · `
                       : null}
                     {group.qualifies > 0
                       ? t('radball.topAdvance', { n: group.qualifies })

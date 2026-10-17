@@ -17,6 +17,7 @@ import type {
   SystemStatus,
   TournamentState,
 } from '../../shared/types';
+import { isDisplayScreen, isFieldId } from '../../shared/types';
 import { sentenceMessage, type EventSentence } from '../../shared/eventMessages';
 import { EngineError } from '../util/errors';
 import { createIdGenerator } from '../util/ids';
@@ -619,10 +620,14 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
     state.radball.decisionSeq = 0;
   }
   // Snapshots written before the language setting existed carry no value; an
-    // unrecognised one is treated the same way rather than reaching the client.
+  // unrecognised one is treated the same way rather than reaching the client.
   if (state.settings.language !== 'en' && state.settings.language !== 'de') {
     state.settings.language = 'en';
   }
+  // Snapshots written before per-field displays existed carry only the global
+  // screen. Unknown values fall back to the board so a hand-edited file never
+  // leaves a projector rendering nothing.
+  sanitiseDisplaySettings(state);
   // Snapshots written before the library existed have no such slice.
   state.teamLibrary = sanitiseTeamLibrary(input.teamLibrary);
   // Likewise for the shelf of saved setups. Both are the host's own shelf
@@ -630,4 +635,54 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
   // back exactly as the exported file had them.
   state.savedTournaments = sanitiseSavedTournamentLibrary(input.savedTournaments);
   return state;
+}
+
+/**
+ * Normalise the display settings so every TV has something valid to render.
+ * Older snapshots carry only the global screen; hand-edited files may carry
+ * anything. Invalid per-field keys are dropped, invalid screens fall back to
+ * the board, and over-long messages are trimmed rather than rendered raw.
+ */
+function sanitiseDisplaySettings(state: TournamentState): void {
+  const settings = state.settings;
+  if (!isDisplayScreen(settings.displayScreen)) {
+    settings.displayScreen = 'scores';
+  }
+  if (settings.displayMessage === null || settings.displayMessage === undefined) {
+    settings.displayMessage = null;
+  } else if (typeof settings.displayMessage !== 'string') {
+    settings.displayMessage = null;
+  } else {
+    const trimmed = settings.displayMessage.trim();
+    settings.displayMessage = trimmed === '' ? null : trimmed.slice(0, 160);
+  }
+  const cleanScreens: Record<string, TournamentState['settings']['displayScreen']> = {};
+  const rawScreens = (settings.displayScreens ?? {}) as Record<string, unknown>;
+  if (rawScreens && typeof rawScreens === 'object' && !Array.isArray(rawScreens)) {
+    for (const [fieldId, screen] of Object.entries(rawScreens)) {
+      if (!isFieldId(fieldId)) continue;
+      if (!isDisplayScreen(screen)) continue;
+      cleanScreens[fieldId] = screen;
+    }
+  }
+  settings.displayScreens = cleanScreens;
+  const cleanMessages: Record<string, string | null> = {};
+  const rawMessages = (settings.displayMessages ?? {}) as Record<string, unknown>;
+  if (rawMessages && typeof rawMessages === 'object' && !Array.isArray(rawMessages)) {
+    for (const [fieldId, message] of Object.entries(rawMessages)) {
+      if (!isFieldId(fieldId)) continue;
+      if (message === null) {
+        cleanMessages[fieldId] = null;
+        continue;
+      }
+      if (typeof message !== 'string') continue;
+      const trimmed = message.trim();
+      if (trimmed === '') {
+        cleanMessages[fieldId] = null;
+      } else {
+        cleanMessages[fieldId] = trimmed.slice(0, 160);
+      }
+    }
+  }
+  settings.displayMessages = cleanMessages;
 }

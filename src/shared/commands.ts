@@ -1380,13 +1380,14 @@ export const COMMANDS = {
     },
   },
   /**
-   * Switch what the hall's display screens show.
+   * Switch what a display shows.
    *
    * Deliberately `operator` rather than `admin`: the person who can see that
    * the match has gone to half-time is the operator standing at the field, and
    * making them walk to the desk to press Pause is the friction this exists to
-   * remove. The screen is hall-wide (there is one projector), so it is not
-   * field-scoped -- any operator switches the same screen.
+   * remove. Each playing field owns its display, so an operator switches their
+   * own field's screen (the field scope is enforced in dispatch); the host can
+   * switch any of them plus the combined display.
    */
   'display.setScreen': {
     permission: 'operator',
@@ -1397,6 +1398,17 @@ export const COMMANDS = {
         return invalid('screen must be one of scores, pause, logo, clock, standings, results');
       }
       const out: Record<string, unknown> = { screen: p.screen };
+      // Which display to switch: a field id ('1'..'8') for that field's own
+      // TV, or omitted/'both' for the combined display. Anything else is a
+      // typo the host should hear about rather than a screen that never moves.
+      if (p.target === undefined || p.target === null || p.target === '' || p.target === 'both' || p.target === 'all' || p.target === 'combined') {
+        // Global/combined: no target stored.
+      } else {
+        if (typeof p.target !== 'string' || !isFieldId(p.target)) {
+          return invalid('target must be a playing field ("1".."8") or "both"');
+        }
+        out.target = p.target;
+      }
       // The message is optional: switching screens and editing the pause text
       // are two different presses, and a switch that forgot the text must not
       // wipe what the host typed.

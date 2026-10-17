@@ -14,6 +14,34 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Added
 
+- **The clock on the field operator panel can be set by typing, not only by
+  the minute.** −1m and +1m reach the lengths a hall plans for, but not the ones
+  it decides on mid-event — a shortened half because the next group is already
+  warming up, a longer one because a decision has to be settled. While the time
+  is stopped the clock itself is the button: tap it and the number becomes a box
+  (`6` for six minutes, `6:30` for six and a half), Enter saves, Escape cancels.
+  The box holds the time the field **still has**, so it opens on exactly the
+  number already on the wall — retype 8:56 and it stays 8:56, type 4:00 and the
+  clock reads 4:00 — and never turns a half-way clock into a full one the moment
+  it is touched. (An earlier pass prefilled the length of the half, which made
+  the box jump from 8:56 to a full 9:00 on open: the first thing the control did
+  was contradict what it had just shown.) A number that cannot be read leaves the
+  box open and flagged instead of closing on a length nobody meant, and the box
+  closes by itself if the match on the field is swapped or the time starts
+  again, so a draft typed for one game can never land on the next. Once the time
+  runs the clock is plain text again, so nothing can move the ground under a
+  running game. The two stepper tooltips now say "half" too, which is what they
+  have always moved.
+
+- **Each field display can now show something different.** Every playing field
+  owns its TV page (`/display/1`, `/display/2`, ...), and the host dashboard
+  carries one control that follows the open field tab: on Field 1's tab it
+  switches Field 1's TV between game, clock, standings and the other screens,
+  so a tap can never land on the wrong field. A field operator's display
+  dialog switches their own field's TV (switching another field's is refused).
+  Per-field choices fall back to the combined value until set, survive
+  restarts and backups, and a TV that reconnects lands on the right screen.
+
 - **The projector can be switched between the scores and five other hall
   screens, from either dashboard.** The display has always drawn one thing: a
   flip-score board per field. Between games a hall needs the projector to say
@@ -162,6 +190,63 @@ third-party action is trusted with a token that can write to the repository.
   so a format gaining a step is one change rather than seven.
 
 ### Fixed
+
+- **The two team cards on a wide field operator panel sat in the left half of
+  the screen.** The cards carry `flex: 0 0 auto`, which is what a stacked phone
+  layout wants — each card then fills the column. Once the layout put them side
+  by side on a landscape screen the same rule shrank both of them to whatever
+  their own content needed, so a pair of name-width cards huddled at the left
+  edge while the clock panel underneath spanned the full width and the right
+  half of the top band stayed empty. The two cards now share the row, each
+  taking half of it, so the pair is exactly as wide as the panel below and the
+  +1/+2/+3/− keys grow from a name's width to the room they were given. A long
+  club name wraps inside its half rather than pushing the row wider than the
+  panel it is meant to match. Nothing moves on a phone, where the cards are
+  stacked and already filled the width.
+
+- **The projector's seven-segment numbers stood open at every corner.** The
+  single-field board draws its score and clock as authored segment geometry, and
+  the segment offsets were still the ones for a 0.5em-wide digit with a 0.16em
+  stroke. The digit box has since grown to 0.58em with a 0.1em stroke, so the
+  horizontal bars stopped about two thirds of a stroke short of the verticals and
+  left a 17px diagonal gap at each corner of a 0 or an 8: at projector scale the
+  outer strokes of a number floated free of its top and bottom bars, which reads
+  as a broken glyph rather than a seven-segment digit. Every edge is now derived
+  from `--segment-thickness` — a bar's pointed end reaches the centre line of the
+  bar it meets and each taper is half a stroke long, so the two 45-degree edges
+  fall on one straight line and the mitre closes — which holds at any digit size
+  or stroke weight. The digit box, the stroke weight and the segment style are
+  unchanged. Closing the corners also puts ink on the digit box's own edges, so
+  the gap between glyphs became the entire clearance between two numbers and
+  neighbouring digits read as one run of bars; that gap goes from 0.08em to
+  0.12em, and the clock's column (which exists to hold a five-glyph readout at
+  its own display size) follows from 460px to 480px so the wider clock keeps its
+  margin instead of ending up 5px off the column rules at 1920x1080. That left
+  each number as one unbroken run of bars — how a solid glyph reads, not how a seven-segment
+  one does. Every bar therefore retracts `--segment-gap` (`--segment-thickness /
+  10`) at both ends, along its own axis, which splits each shared mitre line into
+  two parallel edges with 0.014em of background between them — about 3px on a
+  1080p score and 1px on its clock — while the digit box, the stroke weight, the
+  digits' outer ink bounds and the chamfered outline stay exactly where they
+  were.
+
+  Verified by
+  measuring the rendered segments and reading back the corner pixels in a
+  headless browser at 1920x1080, 1600x900, 1366x768, 1280x720, 1024x768 and
+  390x844, with both a single-digit and a two-digit score, and by reading the
+  luminance profile across all six joints of a fully lit 8 — no background at any
+  lit joint before the hairline, a 3px dip after it.
+
+- **Hurried −1m taps silently shortened both halves, with no way back.** The
+  operator's −1m/+1m steppers moved the *whole* match, so each tap shortened
+  the half on screen by only thirty seconds -- inviting repeat taps until a
+  2x7min ELITE match played 4:30 halves -- and Reset kept the drifted lengths
+  while zeroing everything else, so the shortened halves resurfaced as a full
+  clock. The steppers now move the half on screen by a full minute, and Reset
+  puts a Radball match back on its configured length (age class / reduced
+  time; decision matches get their single half back). Generic knockout matches
+  keep their durations, which a host may have customized deliberately.
+  `tests/radball-timers.test.ts` pins all three behaviours.
 
 - **The Turnierleitung hid things, cut things off and lied about time.** Six
   defects, all found by driving the real dashboard through a headless browser at
@@ -339,6 +424,20 @@ third-party action is trusted with a token that can write to the repository.
   guards in the tree were invisible — including the case it was written for. It
   also could not see a line that was nothing but a hook call, and it wrongly
   reported `something.useThing()`.
+
+- **A queue row's coloured ring lost a piece of its outline when the browser was
+  zoomed below 100%.** At 90% and 80% a CSS pixel is smaller than a device pixel,
+  and the 1px `border-color` ring that marks a READY or on-field match is snapped
+  onto a grid it cannot fill: measured at 0.8 device pixels, the *bottom* run of
+  the ring rounded away to roughly a quarter of its ink on the unlucky rows while
+  the left and right runs kept most of theirs, so the outline read as broken at
+  exactly the corner where the eye checks it. The ring is now drawn twice — the
+  border, plus a `box-shadow` ring one pixel inside — but only under
+  `@media (max-resolution: 0.99dppx)`: the second band snaps from a different
+  phase and holds wherever the first one faded, taking the bottom run from 27% of
+  its ink back to 75% at 80% zoom (and from 23% to 74% at 67%), on the software
+  raster and on ANGLE alike. At 100% and above the query is false and the row's
+  paint is byte-for-byte what it was.
 
 ### Added (1.0.0)
 

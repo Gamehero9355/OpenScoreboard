@@ -6,6 +6,7 @@
  * (including manual corrections and resets) instead of only for plain +n.
  */
 import type { FieldId, Match, ScoreAction, ScoreActionKind, SlotSource, TournamentState } from '../../shared/types';
+import { radballDecisionSec, radballMatchSec } from '../../shared/types';
 import { EngineError } from '../util/errors';
 import { MAX_MATCH_HISTORY } from './defaults';
 import { recalculateRadball } from './radball';
@@ -278,6 +279,7 @@ export function resetScores(
   match.finishedAt = null;
   match.startedAt = null;
   resetTimer(match.timer, ctx.now);
+  restoreConfiguredDuration(state, match);
   touchMatch(mut, match.id);
   pushEvent(mut, 'MATCH_RESET', { key: 'event.matchResetToZero', params: { round: match.roundName } }, {
     matchId: match.id,
@@ -294,4 +296,25 @@ export function resetScores(
 
 export function otherSideOf(side: 'A' | 'B'): 'A' | 'B' {
   return otherSide(side);
+}
+
+/**
+ * Put a Radball match back on its configured length.
+ *
+ * The ±1m steppers rewrite a match's durations mid-game, and Reset used to
+ * keep those drifted values while zeroing everything else -- five hurried
+ * taps turned a 2x7min ELITE match into 4:30 halves, and the reset clock then
+ * showed the full shortened half as if it were correct. Radball durations
+ * come from the competition config (age class / reduced time), never typed
+ * per match, so Reset restores them: decision matches get their single half
+ * back, every other Radball match its two halves. Generic knockout matches
+ * keep their durations, which a host may have customized deliberately and
+ * which have no config to restore from.
+ */
+function restoreConfiguredDuration(state: TournamentState, match: Match): void {
+  const competition = state.radball;
+  if (!competition || !match.radball) return;
+  const expected = match.radball.kind === 'decision' ? radballDecisionSec(competition.config) : radballMatchSec(competition.config);
+  match.timer.durationSec = expected;
+  match.timer.periodDurationSec = expected / match.timer.periodCount;
 }

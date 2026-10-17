@@ -258,11 +258,39 @@
   letter-spacing: -0.02em;
   line-height: 1;
 }
+/* While the time is stopped the clock is the button that sets its length, so it
+   arrives as a native <button> first: strip the chrome a browser insists on.
+   `:where()` keeps this at the specificity of `.op__time` itself, which is what
+   lets the over/paused tints below still win on colour. */
+:where(button).op__time {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 var(--space-2);
+  border-radius: 12px;
+  color: inherit;
+  cursor: pointer;
+}
 .op__time--over {
   color: var(--danger);
 }
 .op__time--paused {
   color: var(--warn);
+}
+.op__time--editable:hover,
+.op__time--editable:focus-visible {
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info) 40%, transparent);
+}
+
+/* The editor borrows the clock's own numerals and size, so the number does not
+   jump the moment the box replaces it. Only the box chrome is replaced. */
+.input.op__time-input {
+  width: auto;
+  min-width: 3.2em;
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  text-align: center;
 }
 
 .op__transport {
@@ -579,6 +607,16 @@
   }
   .op-card {
     min-height: 0;
+    /* Side by side the two cards share the row instead of each shrinking to
+       what its own content needs. Stacked (a phone), `flex: 0 0 auto` fills the
+       column anyway, so this only speaks where the cards are in a row: without
+       it both sat in the left half of a wide screen, each one name-width wide,
+       while the clock panel below them spanned the whole thing. Two equal
+       halves also give the +1/+2/+3/− keys room to grow into. */
+    flex: 1 1 0;
+    /* A long club name must wrap inside its half rather than push the row wider
+       than the panel it is supposed to match. */
+    min-width: 0;
   }
 }
 

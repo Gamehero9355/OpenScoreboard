@@ -369,10 +369,11 @@ describe('http surface', () => {
 });
 
 /**
- * The hall display is switched from a field operator's phone as well as the
- * host's desk, so this is an access-control question and not just a UI one:
- * the operator command must reach the settings slice, and a spectator session
- * must not be able to change what the hall sees.
+ * Each field display is switched independently, from a field operator's phone
+ * as well as the host's desk, so this is an access-control question and not
+ * just a UI one: the operator command must reach the right settings entry, an
+ * operator must not flip another field's TV, and a spectator session must not
+ * be able to change what any screen shows.
  */
 describe('display screen switching', () => {
   it('lets a field operator switch the hall display and refuses a spectator', async () => {
@@ -406,5 +407,55 @@ describe('display screen switching', () => {
     expect(server.store.state.settings.displayScreen).toBe('scores');
 
     await Promise.all([operator.close(), spectator.close()]);
+  }, 20000);
+
+  it('switches each field display independently', async () => {
+    const host = await open(await hostToken());
+    const field1 = await open(await operatorToken('field-1'));
+    const field2 = await open(await operatorToken('field-2'));
+    expect(field1.role()).toBe('operator');
+    expect(field2.role()).toBe('operator');
+
+    // Each operator switches their own field's TV between game, clock and
+    // standings without touching the other field or the combined display.
+    const one = await field1.command('display.setScreen', { screen: 'clock', target: '1' });
+    expect(one.ok).toBe(true);
+    const two = await field2.command('display.setScreen', { screen: 'standings', target: '2' });
+    expect(two.ok).toBe(true);
+    expect(server.store.state.settings.displayScreens?.['1']).toBe('clock');
+    expect(server.store.state.settings.displayScreens?.['2']).toBe('standings');
+    expect(server.store.state.settings.displayScreen).toBe('scores');
+
+    // Per-field messages travel with their own display.
+    const withMessage = await host.command('display.setScreen', {
+      screen: 'pause',
+      target: '1',
+      message: 'Pause auf Feld 1',
+    });
+    expect(withMessage.ok).toBe(true);
+    expect(server.store.state.settings.displayMessages?.['1']).toBe('Pause auf Feld 1');
+    expect(server.store.state.settings.displayMessage).toBe('Halbzeit');
+
+    // An operator cannot flip another field's TV.
+    const crossing = await field1.command('display.setScreen', { screen: 'scores', target: '2' });
+    expect(crossing.ok).toBe(false);
+    expect(crossing.code).toBe('FORBIDDEN');
+    expect(server.store.state.settings.displayScreens?.['2']).toBe('standings');
+
+    // A spectator cannot switch any display.
+    const spectator = await open('not-a-real-token');
+    const refused = await spectator.command('display.setScreen', { screen: 'clock', target: '1' });
+    expect(refused.ok).toBe(false);
+    expect(refused.code).toBe('FORBIDDEN');
+
+    // The host resets both fields back to the game.
+    const reset1 = await host.command('display.setScreen', { screen: 'scores', target: '1' });
+    const reset2 = await host.command('display.setScreen', { screen: 'scores', target: '2' });
+    expect(reset1.ok).toBe(true);
+    expect(reset2.ok).toBe(true);
+    expect(server.store.state.settings.displayScreens?.['1']).toBe('scores');
+    expect(server.store.state.settings.displayScreens?.['2']).toBe('scores');
+
+    await Promise.all([host.close(), field1.close(), field2.close(), spectator.close()]);
   }, 20000);
 });

@@ -207,8 +207,11 @@
   /* The centre column has to hold a five-glyph clock at its own display size.
      It used to cap at 340px, which forced the clock below its intended scale on
      a wide projector -- the second most important number on the board was the
-     one squeezed into a column sized for a label. */
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 460px) minmax(0, 1fr);
+     one squeezed into a column sized for a label. The cap moved to 480px when
+     the readout's inter-digit gap grew (see `.digital__glyphs`): the clock is
+     450px wide at 1920x1080, so 460px left it 5px off the column rules. Only
+     viewports wider than ~1714px reach the cap; below that 28vw still decides. */
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 480px) minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -332,15 +335,28 @@
 
 .digital {
   --segment-thickness: 0.1em;
+  /* How far each bar retracts at each end, along its own axis, to open a hairline
+     at every mitre. Two bars give up one gap each and meet the seam at 45
+     degrees, so the band of background you see measures gap * sqrt(2) -- about
+     0.014em here. Two segments fused into one unbroken run of bars read as a
+     single stroke; the hairline is what keeps each bar a bar. */
+  --segment-gap: calc(var(--segment-thickness) / 10);
   display: inline-flex;
   min-width: 0;
 }
 
+/* The gap is the whole clearance between two numbers: a closed mitre puts ink
+   on the digit box's own edges, so the outer strokes of neighbouring digits sit
+   exactly this far apart. At 0.08em that was less than one stroke width and two
+   digits read as one lump of bars; half a stroke more separates them without
+   opening the readout back up into loose beads. `.arena__clock` is the bound on
+   this value -- its column is a fixed clamp, so a wider gap eats the clock's
+   margin before it touches the grid. */
 .digital__glyphs {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.08em;
+  gap: 0.12em;
   min-width: 0;
 }
 
@@ -370,13 +386,49 @@
   opacity: 1;
 }
 
+/*
+ * The segments interlock on a mitre, so every bar end has to be placed from the
+ * stroke width rather than from round percentages. A bar's pointed end must
+ * reach the *centre line* of the bar it meets, and each taper has to be half a
+ * stroke long, because then the two 45-degree edges fall on one straight line
+ * and the corner closes.
+ *
+ * These numbers used to be 16%/68% and 8%/42%: values that mitre exactly for a
+ * 0.5em-wide digit with a 0.16em stroke. The digit has since grown to 0.58em
+ * with a 0.1em stroke, which left the horizontal bars stopping ~0.07em -- two
+ * thirds of a stroke -- short of the verticals, so the outer strokes of a 0 or
+ * 8 floated free of its top and bottom bars and the number read as broken.
+ * Deriving every edge from --segment-thickness keeps the joint closed whatever
+ * the digit box and stroke weight are.
+ *
+ * With T = --segment-thickness, the digit box 0.58em x 1.06em gives bars of
+ * 0.58em - T horizontally and (1.06em - 2T) / 2 vertically: both 0.48em at the
+ * current thickness, which is why one taper value serves both orientations.
+ * Half the digit height is the middle bar's centre line, so b/e and c/f meet on
+ * that line and g is centred on it.
+ *
+ * Each bar's ends then pull back by --segment-gap along the bar's own axis, which
+ * splits that shared line into two parallel ones with background between them.
+ * Retracting the ends is what keeps the seam a clean 45 degrees: moving the taper
+ * tips alone would leave the bars full length and bend the outline into a notch,
+ * and it would leave the digit's chamfered corners wrong. The bars only get
+ * shorter there, so the digit box, the stroke weight and the outer silhouette are
+ * exactly where they were.
+ */
 .digital__segment--a,
 .digital__segment--d,
 .digital__segment--g {
-  left: 16%;
-  width: 68%;
+  left: calc(var(--segment-thickness) / 2 + var(--segment-gap));
+  width: calc(100% - var(--segment-thickness) - 2 * var(--segment-gap));
   height: var(--segment-thickness);
-  clip-path: polygon(11% 0, 89% 0, 100% 50%, 89% 100%, 11% 100%, 0 50%);
+  clip-path: polygon(
+    calc(var(--segment-thickness) / 2) 0,
+    calc(100% - var(--segment-thickness) / 2) 0,
+    100% 50%,
+    calc(100% - var(--segment-thickness) / 2) 100%,
+    calc(var(--segment-thickness) / 2) 100%,
+    0 50%
+  );
 }
 
 .digital__segment--a {
@@ -384,7 +436,7 @@
 }
 
 .digital__segment--g {
-  top: 45%;
+  top: calc(50% - var(--segment-thickness) / 2);
 }
 
 .digital__segment--d {
@@ -395,10 +447,17 @@
 .digital__segment--c,
 .digital__segment--e,
 .digital__segment--f {
-  top: 8%;
+  top: calc(var(--segment-thickness) / 2 + var(--segment-gap));
   width: var(--segment-thickness);
-  height: 42%;
-  clip-path: polygon(50% 0, 100% 12%, 100% 88%, 50% 100%, 0 88%, 0 12%);
+  height: calc(50% - var(--segment-thickness) / 2 - 2 * var(--segment-gap));
+  clip-path: polygon(
+    50% 0,
+    100% calc(var(--segment-thickness) / 2),
+    100% calc(100% - var(--segment-thickness) / 2),
+    50% 100%,
+    0 calc(100% - var(--segment-thickness) / 2),
+    0 calc(var(--segment-thickness) / 2)
+  );
 }
 
 .digital__segment--b,
@@ -408,7 +467,7 @@
 
 .digital__segment--c,
 .digital__segment--e {
-  top: 50%;
+  top: calc(50% + var(--segment-gap));
   bottom: auto;
 }
 
@@ -1000,6 +1059,32 @@
     justify-content: flex-start;
     width: 100%;
   }
+}
+
+/* The only chrome left on a display: field switcher, lights, fullscreen in one
+   dimmed cluster pinned to the corner. It stays out of the board's way until
+   hovered or focused, and never prints. */
+.disp-tools {
+  position: fixed;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  max-width: min(100vw - 2 * var(--space-3), 640px);
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  opacity: 0.35;
+  transition: opacity 150ms var(--ease);
+}
+.disp-tools:hover,
+.disp-tools:focus-within {
+  opacity: 1;
 }
 
 /* --- bracket display: wall poster ------------------------------------------- */

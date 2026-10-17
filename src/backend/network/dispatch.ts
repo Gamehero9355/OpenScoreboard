@@ -833,15 +833,40 @@ export async function dispatchCommand(
         break;
       }
       /**
-       * Switch the hall display. It writes the settings slice because that is
-       * what every screen already follows -- one value, one delta, and the
-       * projector repaints without a second channel to keep in sync.
+       * Switch a display. It writes the settings slice because that is what
+       * every screen already follows -- one value, one delta, and the TV
+       * repaints without a second channel to keep in sync. A `target` field id
+       * switches that field's own display; no target switches the combined
+       * display. An operator may only switch their own field (or the combined
+       * display, for backwards compatibility); switching another field's TV is
+       * the host's job.
        */
       case 'display.setScreen': {
+        const rawTarget = payload.target as string | undefined;
+        const target: FieldId | null = rawTarget ? (rawTarget as FieldId) : null;
+        if (target !== null && scope.role === 'operator' && scope.fieldId !== target) {
+          return { ok: false, code: 'FORBIDDEN', error: 'This control link can only switch its own field display.' };
+        }
+        if (target !== null && !store.state.fields[target]) {
+          return { ok: false, code: 'FIELD_NOT_FOUND', error: 'That field does not exist.' };
+        }
         execute((s, _c, m) => {
-          s.settings.displayScreen = payload.screen as DisplayScreen;
-          if (payload.message !== undefined) {
-            s.settings.displayMessage = (payload.message as string | null) ?? null;
+          if (target === null) {
+            s.settings.displayScreen = payload.screen as DisplayScreen;
+            if (payload.message !== undefined) {
+              s.settings.displayMessage = (payload.message as string | null) ?? null;
+            }
+          } else {
+            if (!s.settings.displayScreens || typeof s.settings.displayScreens !== 'object') {
+              s.settings.displayScreens = {};
+            }
+            s.settings.displayScreens[target] = payload.screen as DisplayScreen;
+            if (payload.message !== undefined) {
+              if (!s.settings.displayMessages || typeof s.settings.displayMessages !== 'object') {
+                s.settings.displayMessages = {};
+              }
+              s.settings.displayMessages[target] = (payload.message as string | null) ?? null;
+            }
           }
           m.settings = true;
           m.urgency = 'immediate';

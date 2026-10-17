@@ -28,7 +28,7 @@
  */
 import { useMemo, useRef } from 'react';
 import type { Match, TournamentState } from '../../shared/types';
-import { bracketRounds, isRealMatch, logoOf, nameOf } from '../../shared/matchUtils';
+import { bracketRounds, fieldDisplayName, isRealMatch, logoOf, nameOf } from '../../shared/matchUtils';
 import { Button } from './primitives';
 import { CrestWithName } from './TeamCrest';
 import { IconCollapse, IconExpand } from './icons';
@@ -346,7 +346,9 @@ function MatchCard({
         ) : (
           <span>#{match.position + 1}</span>
         )}
-        {field ? <span className="bm__field">{field.name}</span> : null}
+        {field && match.fieldId ? (
+          <span className="bm__field">{fieldDisplayName(field.name, match.fieldId, asTranslate(t))}</span>
+        ) : null}
       </header>
       {sides.map((side, index) => {
         const isWinner = match.winnerId !== null && match.winnerId === side.id;

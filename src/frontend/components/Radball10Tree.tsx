@@ -45,7 +45,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TournamentState } from '../../shared/types';
-import { logoOf, nameOf } from '../../shared/matchUtils';
+import { fieldDisplayName, logoOf, nameOf } from '../../shared/matchUtils';
 import {
   finalPhaseRows,
   groupFixtureDigest,
@@ -431,7 +431,9 @@ function FinalPhaseList({ state, rows }: { state: TournamentState; rows: FinalPh
               {row.blockedBy ? (
                 <span className="rbt__row-blocked tiny">waiting: {row.blockedBy}</span>
               ) : row.fieldId ? (
-                <span className="tiny dim">{state.fields[row.fieldId]?.name ?? t('field.label', { n: row.fieldId })}</span>
+                <span className="tiny dim">
+                  {fieldDisplayName(state.fields[row.fieldId]?.name, row.fieldId, asTranslate(t))}
+                </span>
               ) : null}
             </span>
           </li>

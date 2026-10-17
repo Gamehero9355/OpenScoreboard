@@ -826,18 +826,18 @@ export type Theme = 'dark' | 'light';
 export type WinCondition = 'manual' | 'points' | 'timer' | 'either';
 
 /**
- * What the hall's display screens are showing.
+ * What a display screen is showing.
  *
  * `scores` is the board the display has always drawn -- one flip-score sheet
- * per field. The rest replace it with a single hall-wide screen, and they exist
+ * per field. The rest replace it with a full-screen view, and they exist
  * because the projector is already on the wall: between games it should be able
  * to say "Pause", carry the club's crest, show the wall clock, publish the
  * tables, or list the running order -- without anybody tabbing to another app.
  *
- * The switch is one value for the whole hall rather than one per field, because
- * the projector that shows the tables is the same projector that shows the
- * scores, and two operators flipping it to different things would be a fight
- * the display cannot win.
+ * Every playing field owns its display (`/display/1`, `/display/2`, ...), and
+ * each one can show something different: Field 1 the running game while Field 2
+ * shows the clock, or either one the standings. The combined display
+ * (`/display`) follows the hall-wide `displayScreen` value.
  */
 export type DisplayScreen = 'scores' | 'pause' | 'logo' | 'clock' | 'standings' | 'results';
 
@@ -847,6 +847,44 @@ export const DISPLAY_SCREENS: DisplayScreen[] = ['scores', 'pause', 'logo', 'clo
 /** True for a well-formed display screen. */
 export function isDisplayScreen(value: unknown): value is DisplayScreen {
   return typeof value === 'string' && (DISPLAY_SCREENS as string[]).includes(value);
+}
+
+/**
+ * Which screen a display shows: its own per-field value when set, otherwise
+ * the hall-wide fallback. `target` is a field id ('1', '2', ...) or 'both' for
+ * the combined display. Unknown targets read as the fallback, so an older
+ * client and a legacy snapshot agree on the board.
+ */
+export function displayScreenFor(
+  settings: { displayScreen?: unknown; displayScreens?: unknown } | null | undefined,
+  target: string | null | undefined,
+): DisplayScreen {
+  const fallback: DisplayScreen = isDisplayScreen(settings?.displayScreen) ? settings.displayScreen : 'scores';
+  if (!target || target === 'both' || target === 'all' || target === 'combined') return fallback;
+  const maps = (settings?.displayScreens ?? {}) as Record<string, unknown>;
+  const own = maps[target];
+  return isDisplayScreen(own) ? own : fallback;
+}
+
+/**
+ * The pause/logo caption a display shows: its own per-field message when set,
+ * otherwise the hall-wide one. Mirrors `displayScreenFor`.
+ */
+export function displayMessageFor(
+  settings: { displayMessage?: unknown; displayMessages?: unknown } | null | undefined,
+  target: string | null | undefined,
+): string | null {
+  const fallback =
+    typeof settings?.displayMessage === 'string' && settings.displayMessage.trim() !== ''
+      ? (settings.displayMessage as string)
+      : null;
+  if (!target || target === 'both' || target === 'all' || target === 'combined') return fallback;
+  const maps = (settings?.displayMessages ?? {}) as Record<string, unknown>;
+  const own = maps[target];
+  if (typeof own === 'string' && own.trim() !== '') return own;
+  // An explicit per-field null clears the fallback for that display only.
+  if (target in maps) return null;
+  return fallback;
 }
 
 export interface Settings {
@@ -862,10 +900,19 @@ export interface Settings {
   showSponsorBar: boolean;
   invertDisplayColors: boolean;
   /**
-   * What every projector and TV is showing right now. Defaults to the score
-   * board, so a hall that never touches it sees exactly what it always saw.
+   * What the combined display (`/display`) shows right now. Defaults to the
+   * score board, so a hall that never touches it sees exactly what it always
+   * saw. Each field display (`/display/1`, ...) falls back to this when it has
+   * no per-field value yet.
    */
   displayScreen: DisplayScreen;
+  /**
+   * Per-field display overrides, keyed by field id ('1', '2', ...). Each field
+   * has its own TV/projector page and its own control to switch it between
+   * game, clock, standings and the other screens.
+   */
+  displayScreens?: Record<string, DisplayScreen>;
+  displayMessages?: Record<string, string | null>;
   /**
    * The line under the “Pause” heading, and the caption on the logo screen.
    * Null (or empty) leaves the headline to speak for itself.

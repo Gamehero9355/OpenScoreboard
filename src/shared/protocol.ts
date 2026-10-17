@@ -236,6 +236,36 @@ export function validateSettingsPatch(patch: SettingsPatch, current: Settings): 
         out.displayScreen = raw;
         break;
       }
+      case 'displayScreens': {
+        if (raw === null || raw === undefined) break;
+        if (typeof raw !== 'object' || Array.isArray(raw)) return invalid('displayScreens must be an object');
+        const maps: Record<string, unknown> = {};
+        for (const [fieldId, screen] of Object.entries(raw as Record<string, unknown>)) {
+          if (!isFieldId(fieldId)) return invalid('displayScreens keys must be playing fields ("1".."8")');
+          if (screen === null || screen === undefined) continue;
+          if (!isDisplayScreen(screen)) return invalid(`displayScreens[${fieldId}] must be one of ${DISPLAY_SCREENS.join(', ')}`);
+          maps[fieldId] = screen;
+        }
+        (out as Record<string, unknown>).displayScreens = maps;
+        break;
+      }
+      case 'displayMessages': {
+        if (raw === null || raw === undefined) break;
+        if (typeof raw !== 'object' || Array.isArray(raw)) return invalid('displayMessages must be an object');
+        const maps: Record<string, string | null> = {};
+        for (const [fieldId, message] of Object.entries(raw as Record<string, unknown>)) {
+          if (!isFieldId(fieldId)) return invalid('displayMessages keys must be playing fields ("1".."8")');
+          if (message === null || message === '') {
+            maps[fieldId] = null;
+            continue;
+          }
+          const v = asString(message, 160);
+          if (!v) return invalid(`displayMessages[${fieldId}] must be 160 characters or fewer`);
+          maps[fieldId] = v;
+        }
+        (out as Record<string, unknown>).displayMessages = maps;
+        break;
+      }
       case 'displayMessage': {
         // Null and the empty string both mean "no message", so clearing it is a
         // normal patch rather than something the settings page has to special-case.

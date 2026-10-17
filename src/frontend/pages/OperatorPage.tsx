@@ -5,14 +5,14 @@
  * transport controls. Nothing else competes for attention, every target is at
  * least 44px, and the page cannot be scrolled accidentally during a match.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FieldId, Match } from '../../shared/types';
-import { homeFieldOf, nameOf, waitingReason } from '../../shared/matchUtils';
+import { fieldDisplayName, homeFieldOf, nameOf, periodElapsedSec, periodLeftSec, waitingReason } from '../../shared/matchUtils';
 import { live } from '../lib/live';
 import { useHotkeys, useLive, useMatchClock, useWakeLock } from '../lib/hooks';
 import { rememberPin } from '../lib/token';
 import { asTranslate, useI18n } from '../lib/useI18n';
-import { cx, formatClock, formatTime } from '../lib/util';
+import { cx, durationForTimeLeft, formatClock, formatDurationInput, formatTime, parseDurationInput } from '../lib/util';
 import { Badge, Button, ConnectionBadge, MatchStateBadge, Modal } from '../components/primitives';
 import { EndMatchDialog } from '../components/dialogs';
 import { DisplayScreenPicker } from '../components/DisplayScreenPicker';
@@ -148,7 +148,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
     <div className={cx('op', showKeys && 'op--keys-open')}>
       <div className="op__bar">
         <span className="op__identity">
-          <span className="op__field">{field.name}</span>
+          <span className="op__field">{fieldDisplayName(field.name, fieldId, asTranslate(t))}</span>
           <span className="op__round">
             {match
               ? `${match.roundName} · ${t('dialog.matchLabel', { n: match.position + 1 })}${
@@ -192,11 +192,11 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
 
       {lockError ? (
         <div className="op-lock" role="alert">
-          <strong>{t('op.lockTitle', { field: field.name })}</strong>
+          <strong>{t('op.lockTitle', { field: fieldDisplayName(field.name, fieldId, asTranslate(t)) })}</strong>
           <span className="small dim">{lockError}</span>
           <p className="hint">{t('op.lockHint')}</p>
           <Button tone="danger" onClick={() => void claim(true)}>
-            {t('op.takeOver', { field: field.name })}
+            {t('op.takeOver', { field: fieldDisplayName(field.name, fieldId, asTranslate(t)) })}
           </Button>
         </div>
       ) : null}
@@ -263,7 +263,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
         {!match ? (
           <div className="op__main">
             <div className="field__empty stack g3" style={{ alignItems: 'center', flex: '1 1 auto' }}>
-              <span className="op__field">{field.name}</span>
+              <span className="op__field">{fieldDisplayName(field.name, fieldId, asTranslate(t))}</span>
               <span className="dim">{t('op.waitingAssignment')}</span>
               {nextAvailable ? (
                 <span className="stack g2" style={{ alignItems: 'center' }}>
@@ -331,39 +331,14 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
             </div>
 
             <div className="op__side">
-              <div className="op__clock">
-                <Button
-                  size="sm"
-                  tone="ghost"
-                  disabled={!canControl || match.timer.running}
-                  onClick={() =>
-                    void run('match.setTimer', {
-                      durationSec: Math.max(60, match.timer.durationSec - 60),
-                    })
-                  }
-                  title={t('op.shortenClock')}
-                >
-                  −1m
-                </Button>
-                <span
-                  className={cx(
-                    'op__time',
-                    clock.over && 'op__time--over',
-                    (match.state === 'PAUSED' || match.state === 'HALFTIME') && 'op__time--paused',
-                  )}
-                >
-                  {formatClock(clock.ms)}
-                </span>
-                <Button
-                  size="sm"
-                  tone="ghost"
-                  disabled={!canControl || match.timer.running}
-                  onClick={() => void run('match.setTimer', { durationSec: match.timer.durationSec + 60 })}
-                  title={t('op.extendClock')}
-                >
-                  +1m
-                </Button>
-              </div>
+              <MatchClock
+                match={match}
+                ms={clock.ms}
+                over={clock.over}
+                canControl={canControl}
+                busy={busy}
+                onSetDurationSec={(durationSec) => void run('match.setTimer', { durationSec })}
+              />
 
               <div className="op__transport op__transport--wide">
                 {match.state === 'HALFTIME' ? (
@@ -455,7 +430,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
 
       {showDisplay ? (
         <Modal title={t('display.title')} onClose={() => setShowDisplay(false)}>
-          <DisplayScreenPicker compact />
+          <DisplayScreenPicker compact target={fieldId} />
         </Modal>
       ) : null}
 
@@ -471,6 +446,185 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * The clock, its minute steppers, and the inline editor for its length.
+ *
+ * The clock on screen counts one half, so the steppers move one half by a
+ * minute -- not the whole match, which would move each half by only thirty
+ * seconds and invite repeated taps.
+ *
+ * ±1m is the fast path, but it cannot reach the lengths a hall actually
+ * decides on mid-event, so the number itself is the second path: while the time
+ * is stopped it is a button, and tapping it types the length outright. It is a
+ * button only when stopped, so the control cannot be pressed under a running
+ * game, where moving the ground would silently lengthen or shorten the half.
+ *
+ * The box holds the time the field *still has*, which for a countdown is the
+ * number already on the wall -- retype 8:56 and it stays 8:56, type 4:00 and the
+ * clock says 4:00. Opening it must never turn a half-way clock into a full one,
+ * or the first thing the control does is contradict what it just showed. It is
+ * therefore not the length of the half: that belongs to the steppers, which move
+ * it a minute at a time.
+ */
+function MatchClock({
+  match,
+  ms,
+  over,
+  canControl,
+  busy,
+  onSetDurationSec,
+}: {
+  match: Match;
+  ms: number;
+  over: boolean;
+  canControl: boolean;
+  busy: boolean;
+  onSetDurationSec: (durationSec: number) => void;
+}) {
+  const { t } = useI18n();
+  const timer = match.timer;
+  const halves = timer.periodCount === 1 ? 1 : 2;
+  const stepSec = 60 * halves;
+  const editable = canControl && !timer.running;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [unreadable, setUnreadable] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  /** What the box was opened with, so an untouched box saves nothing. */
+  const openedRef = useRef(0);
+
+  // A length belongs to the match that was on the field when the box opened.
+  // Any of these three changes means the box is about someone else's game, or
+  // the time is running again, so the draft is dropped rather than committed.
+  useEffect(() => {
+    setEditing(false);
+  }, [match.id, timer.running, canControl]);
+
+  useEffect(() => {
+    // Focus as well as select: a box that appears without the keyboard and the
+    // caret in it costs the operator a second tap on a phone, and a selection
+    // that never happened means their first keystroke is inserted rather than
+    // replacing the number they were shown.
+    if (!editing) return;
+    const input = inputRef.current;
+    input?.focus();
+    input?.select();
+  }, [editing]);
+
+  const open = () => {
+    // The time still left for this half -- the board's own number while the
+    // clock counts down, so the box opens on what was just read. Floored, because
+    // the board truncates too: rounding here is how a clock reading 8:55 came
+    // back as 8:56 the moment it was touched.
+    const left = Math.floor(periodLeftSec(timer, Date.now()));
+    openedRef.current = left;
+    setDraft(formatDurationInput(left));
+    setUnreadable(false);
+    setEditing(true);
+  };
+
+  /** Close the editor, saving the typed length unless it was cancelled. */
+  const close = (commit: boolean) => {
+    if (!editing) return;
+    const typed = parseDurationInput(draft);
+    // A box holding something unreadable stays open and says so instead of
+    // closing on a length nobody meant: losing a typed number silently is how a
+    // half starts on the wrong time. Escape, or a number that reads, closes it.
+    if (commit && typed === null) {
+      setUnreadable(true);
+      return;
+    }
+    setEditing(false);
+    // A box that was opened and abandoned saves nothing -- blur is also how the
+    // editor closes, and "no number typed" must not snap the clock to a length
+    // nobody chose.
+    if (!commit || typed === null) return;
+    if (typed === openedRef.current) return;
+    // At halftime the number is the length of the half that is about to start:
+    // the elapsed time belongs to the half that is over, and adding it back would
+    // hand the second half the old half's time on top of what was typed.
+    const played = match.state === 'HALFTIME' ? 0 : periodElapsedSec(timer, Date.now());
+    onSetDurationSec(durationForTimeLeft(typed, halves, played));
+  };
+
+  const shown = formatClock(ms);
+  const tone = cx(
+    'op__time',
+    over && 'op__time--over',
+    (match.state === 'PAUSED' || match.state === 'HALFTIME') && 'op__time--paused',
+  );
+
+  return (
+    <>
+      <div className="op__clock">
+        <Button
+          size="sm"
+          tone="ghost"
+          disabled={!editable || busy}
+          onClick={() => onSetDurationSec(Math.max(stepSec, timer.durationSec - stepSec))}
+          title={t('op.shortenClock')}
+        >
+          −1m
+        </Button>
+        {editing ? (
+          <input
+            ref={inputRef}
+            className={cx('input', 'op__time', 'op__time-input', unreadable && 'input--invalid')}
+            value={draft}
+            size={5}
+            inputMode="numeric"
+            autoComplete="off"
+            aria-label={t('op.editClock')}
+            aria-invalid={unreadable || undefined}
+            onChange={(event) => {
+              const next = padSeconds(event.target.value);
+              setDraft(next);
+              if (parseDurationInput(next) !== null) setUnreadable(false);
+            }}
+            onBlur={() => close(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                close(true);
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close(false);
+              }
+            }}
+          />
+        ) : editable ? (
+          <button
+            type="button"
+            className={cx(tone, 'op__time--editable')}
+            onClick={open}
+            title={t('op.editClock')}
+            aria-label={`${t('op.editClock')} — ${shown}`}
+          >
+            {shown}
+          </button>
+        ) : (
+          <span className={tone}>{shown}</span>
+        )}
+        <Button
+          size="sm"
+          tone="ghost"
+          disabled={!editable || busy}
+          onClick={() => onSetDurationSec(timer.durationSec + stepSec)}
+          title={t('op.extendClock')}
+        >
+          +1m
+        </Button>
+      </div>
+      {editing ? <p className="hint center">{t('op.editClockHint')}</p> : null}
+    </>
+  );
+}
+
+/** `6:3` on a phone keypad means 6:30 -- pad the seconds as they are typed. */
+function padSeconds(text: string): string {
+  return /^(\d{1,2}):\d$/.test(text) ? `${text}0` : text;
 }
 
 /**

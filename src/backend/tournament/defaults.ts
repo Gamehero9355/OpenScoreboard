@@ -18,8 +18,12 @@ export const DEFAULT_SETTINGS: Settings = {
   showSponsorBar: true,
   invertDisplayColors: false,
   // The score board is the display's default: a hall that never opens the new
-  // screen switcher sees exactly the board it has always seen.
+  // screen switcher sees exactly the board it has always seen. Per-field
+  // overrides start empty, so every field display falls back to this until the
+  // host or its operator picks something else.
   displayScreen: 'scores',
+  displayScreens: {},
+  displayMessages: {},
   displayMessage: null,
   defaultMatchDurationSec: 180,
   scoringIncrements: [1, 2, 3],

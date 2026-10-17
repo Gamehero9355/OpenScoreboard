@@ -923,7 +923,7 @@
   justify-content: center;
   gap: var(--space-1);
   padding: 0 var(--space-2);
-  min-width: 96px;
+  min-width: 0;
 }
 
 .score__clock {
@@ -942,6 +942,16 @@
 .score__clock--over {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 55%, var(--line-strong));
+}
+
+/* The caption under the clock ("Halbzeit 1/2 · Herunterzählen") is wider than
+   the 96px middle column, so without containment it bleeds into the team
+   panels on either side. It wraps centered instead, breaking even the long
+   word if the column gets any narrower. */
+.score__caption {
+  max-width: 100%;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .score__sep {
@@ -1049,12 +1059,26 @@
   background: var(--line);
 }
 .queue__item--ready {
+  --queue-ring: color-mix(in srgb, var(--info) 35%, transparent);
   background: color-mix(in srgb, var(--info) 8%, transparent);
-  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+  border-color: var(--queue-ring);
 }
 .queue__item--current {
+  --queue-ring: color-mix(in srgb, var(--live) 40%, transparent);
   background: color-mix(in srgb, var(--live) 10%, transparent);
-  border-color: color-mix(in srgb, var(--live) 40%, transparent);
+  border-color: var(--queue-ring);
+}
+/* Zoomed below 100% a CSS pixel is smaller than a device pixel, so this 1px ring is
+   drawn on a grid it cannot fill: its bottom run can round away to a fraction of its
+   ink (down to a quarter of it on the unlucky rows) and reads as a piece of the
+   outline missing. A second ring one pixel inside snaps from a different phase and
+   holds where the first one faded — two thin bands instead of one broken line. At
+   100% and above the query is false and the ring stays the plain 1px border. */
+@media (max-resolution: 0.99dppx) {
+  .queue__item--ready,
+  .queue__item--current {
+    box-shadow: inset 0 0 0 1px var(--queue-ring, transparent);
+  }
 }
 
 .queue__index {
@@ -1277,9 +1301,11 @@
 
 .segmented {
   display: inline-flex;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  overflow: hidden;
   background: var(--surface);
   padding: 2px;
   gap: 2px;
@@ -1294,6 +1320,8 @@
   cursor: pointer;
   font-size: var(--step-0);
   font-weight: 650;
+  white-space: nowrap;
+  flex: 0 0 auto;
   transition: background 120ms var(--ease), color 120ms var(--ease);
 }
 .segmented button:hover {
@@ -1304,6 +1332,25 @@
   background: var(--brand);
   color: var(--brand-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* Wrapping variant for switchers with many options (the per-field display
+   switcher has six). A single row does not fit a 360px side rail or a phone
+   modal, so the options run on a grid instead: every selector stays visible
+   and reachable without horizontal scrolling, collapsing from three columns
+   to two on very narrow screens rather than pushing anything out. */
+.segmented--wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr));
+  overflow: visible;
+}
+.segmented--wrap button {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+  padding: 10px var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* --- modal --------------------------------------------------------------------- */

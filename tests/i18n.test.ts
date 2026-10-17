@@ -106,7 +106,7 @@ describe('lookup', () => {
 
   it('substitutes placeholders in both languages', () => {
     expect(translate('en', 'field.label', { n: 2 })).toBe('Field 2');
-    expect(translate('de', 'field.label', { n: 2 })).toBe('Platz 2');
+    expect(translate('de', 'field.label', { n: 2 })).toBe('Feld 2');
     expect(translate('en', 'score.of', { a: 5, b: 3 })).toBe('5 : 3');
     expect(translate('de', 'score.of', { a: 5, b: 3 })).toBe('5 : 3');
   });
@@ -122,7 +122,7 @@ describe('lookup', () => {
     // Silently dropping it would produce "Field " and read as a bug in the app
     // rather than a bug in the caller.
     expect(translate('en', 'field.label')).toBe('Field {n}');
-    expect(translate('de', 'field.label')).toBe('Platz {n}');
+    expect(translate('de', 'field.label')).toBe('Feld {n}');
   });
 
   it('coerces anything it is handed to a supported language', () => {
@@ -300,13 +300,13 @@ describe('the German wording', () => {
     });
   }
 
-  it('uses "Platz" for a playing field, never "Feld"', () => {
-    // "Feld" also means "field" in the mathematical sense in German; "Platz" is
-    // the word a sports hall uses, and mixing the two is the classic giveaway
-    // of a machine translation.
-    for (const key of ['field.label', 'field.count', 'field.name', 'field.queue'] as MessageKey[]) {
-      expect(MESSAGES.de[key]).not.toMatch(/\bFeld\b/);
-    }
+  it('uses "Feld" for a playing field\'s name', () => {
+    // The hall calls its playing surfaces "Feld", so an untouched default
+    // field name reads as "Feld 1" rather than the English "Field 1" it is
+    // stored as. Rank-related "Platz" wording (Spiel um Platz 3,
+    // Platzierungsspiele) is a different word and stays as it is.
+    expect(MESSAGES.de['field.label']).toBe('Feld {n}');
+    expect(MESSAGES.de['results.field']).toBe('Feld');
   });
 
   it('addresses the host the way a German sports hall does', () => {

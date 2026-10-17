@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FieldId, Match, SystemStatus, TournamentState } from '../../shared/types';
 import {
+  fieldDisplayName,
   fieldIds,
   fieldQueue,
   hasHomeRosters,
@@ -288,11 +289,17 @@ export function HostPage() {
         </div>
 
         <aside className="shell__side">
-          {/* What the projector is showing, switched from the desk. Sitting at
-              the top of the rail puts it where a host between games is already
-              looking, rather than behind a dialog on a page they have to find. */}
+          {/* The field's display, switched from the desk. Exactly one selector,
+              following the open field tab above: on Field 2's tab this
+              switches Field 2's TV, so a tap can never land on the wrong
+              field. */}
           <Panel title={t('display.title')}>
-            <DisplayScreenPicker />
+            <DisplayScreenPicker
+              key={`display-picker-${activeField}`}
+              target={activeField}
+              compact
+              variant="select"
+            />
           </Panel>
 
           <Panel
@@ -324,9 +331,9 @@ export function HostPage() {
                     className={cx('compact-list__row', 'compact-list__row--pick', fieldId === activeField && 'compact-list__row--active')}
                     key={fieldId}
                     onClick={() => selectField(fieldId)}
-                    title={`Control ${field.name}`}
+                    title={`Control ${fieldDisplayName(field.name, fieldId, asTranslate(t))}`}
                   >
-                    <span className="tiny faint nowrap">{field.name}</span>
+                    <span className="tiny faint nowrap">{fieldDisplayName(field.name, fieldId, asTranslate(t))}</span>
                     <span className="grow nowrap">
                       {match ? (
                         <>
@@ -632,7 +639,11 @@ function SchedulePanel({
                   {nameOf(state, match.participantAId)} <span className="faint">vs</span>{' '}
                   {nameOf(state, match.participantBId)}
                 </span>
-                <span className="tiny faint nowrap">{field ? field.name : t('setup.scheduleFieldAny')}</span>
+                <span className="tiny faint nowrap">
+                  {match.fieldId
+                    ? fieldDisplayName(field?.name, match.fieldId, asTranslate(t))
+                    : t('setup.scheduleFieldAny')}
+                </span>
                 <MatchStateBadge state={match.state} />
               </button>
             );
@@ -678,7 +689,7 @@ function QueuePanel({
   const { t } = useI18n();
   // Without field rosters the fields split the draw instead, which the panel
   // says out loud so the queue never looks empty for no reason.
-  const fieldName = state.fields[fieldId]?.name ?? t('field.label', { n: fieldId });
+  const fieldName = fieldDisplayName(state.fields[fieldId]?.name, fieldId, asTranslate(t));
   const rosterless = !hasHomeRosters(state);
 
   const shownOwn = own.slice(0, 24);
@@ -845,9 +856,9 @@ function FieldTabs({
             tabIndex={selected ? 0 : -1}
             className={cx('field-tabs__tab', selected && 'field-tabs__tab--active')}
             onClick={() => onSelect(fieldId)}
-            title={`Control ${field?.name ?? fieldId}`}
+            title={`Control ${fieldDisplayName(field?.name, fieldId, asTranslate(t))}`}
           >
-            <span className="field-tabs__name">{field?.name ?? t('field.label', { n: fieldId })}</span>
+            <span className="field-tabs__name">{fieldDisplayName(field?.name, fieldId, asTranslate(t))}</span>
             {match ? (
               <span className="field-tabs__meta">
                 <span className="tnum">
