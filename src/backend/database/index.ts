@@ -33,6 +33,7 @@ export async function openStorage(
 ): Promise<StorageOpenResult> {
   mkdirSync(dataDir, { recursive: true });
   const driver = resolveDriver(options.driver);
+  let sqliteRejected = false;
 
   if (driver !== 'json') {
     const sqlitePath = `${dataDir}/tournament.sqlite`;
@@ -45,6 +46,7 @@ export async function openStorage(
         if (driver === 'sqlite') throw error;
         const reason = error instanceof Error ? error.message : String(error);
         // Fall through to the JSON driver rather than refusing to start.
+        sqliteRejected = true;
         // eslint-disable-next-line no-console
         console.warn(`[storage] SQLite unavailable (${reason}); falling back to the JSON event log.`);
       }
@@ -60,7 +62,11 @@ export async function openStorage(
     note:
       driver === 'json'
         ? 'JSON snapshot + event log (forced)'
-        : 'JSON snapshot + event log (node:sqlite not available)',
+        : sqliteRejected
+          // Distinct from "not available": the operator needs to know the
+          // database file on disk is damaged, not that the runtime lacks it.
+          ? 'JSON snapshot + event log (the SQLite file could not be opened)'
+          : 'JSON snapshot + event log (node:sqlite not available)',
   };
 }
 

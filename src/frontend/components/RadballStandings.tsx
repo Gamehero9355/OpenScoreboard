@@ -10,6 +10,7 @@ import type { StandingRow, TournamentState } from '../../shared/types';
 import { fieldDisplayName, logoOf, nameOf } from '../../shared/matchUtils';
 import { groupNameLabel, phaseNameLabel, phaseViews, standingStatusLabel } from '../lib/radball';
 import { asTranslate, useI18n } from '../lib/useI18n';
+import { cx } from '../lib/util';
 import { Empty, Panel } from './primitives';
 import { CrestWithName } from './TeamCrest';
 
@@ -82,16 +83,22 @@ export function StandingsTable({
   state,
   rows,
   cut,
+  className,
 }: {
   state: TournamentState;
   rows: StandingRow[];
   cut: number;
+  /**
+   * An extra class for the table itself. The projector prints the same table
+   * at ten metres, and it needs the display's own sizing on top of this one.
+   */
+  className?: string;
 }) {
   const { t } = useI18n();
   if (rows.length === 0) return <Empty>{t('results.noMatches')}</Empty>;
   return (
     <div className="rb-tablewrap">
-      <table className="table rb-table">
+      <table className={cx('table rb-table', className)}>
         <thead>
           <tr>
             <th className="num">#</th>

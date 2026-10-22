@@ -1,6 +1,7 @@
 ﻿/** Shared UI primitives. Deliberately small and unstyled-by-default so pages
  *  compose them instead of fighting them. */
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -620,6 +621,25 @@ export function Toasts() {
 /* Misc                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A URL broken where a person would break it.
+ *
+ * A URL is one long word, so a browser breaks it wherever it runs out of room
+ * -- through a hostname, through a token -- and the result is a wall of
+ * fragments nobody can read aloud. A zero-width space after each of the URL's
+ * own separators gives the browser the breaks a person would make: after the
+ * scheme, after each path segment, before the fragment.
+ */
+function readableUrl(url: string): ReactNode {
+  const parts = url.split(/(?<=[/:?#&=_])/);
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 ? <wbr /> : null}
+      {part}
+    </Fragment>
+  ));
+}
+
 export function CopyableUrl({
   url,
   label,
@@ -641,7 +661,7 @@ export function CopyableUrl({
         onCopied?.(ok);
       }}
     >
-      <span className="url__text">{url}</span>
+      <span className="url__text">{readableUrl(url)}</span>
       <span className="tiny faint nowrap">{label ?? t('action.copy')}</span>
     </button>
   );

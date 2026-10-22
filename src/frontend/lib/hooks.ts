@@ -49,11 +49,43 @@ export function useClockValue(timer: TimerState | null | undefined): number {
   return value;
 }
 
-export function useMatchClock(match: Match | null | undefined): { ms: number; over: boolean } {
+export function useMatchClock(match: Match | null | undefined): { ms: number; over: boolean; atBreak: boolean } {
   const timer = match?.timer ?? null;
   const ms = useClockValue(timer);
-  const over = Boolean(timer && timer.mode === 'down' && ms <= 0);
-  return { ms, over };
+  const breakMs = useBreakRemaining(match);
+  const atBreak = breakMs !== null;
+  return {
+    // During the break the screen shows the break countdown, not the match
+    // clock: the match clock is stopped at zero and says nothing at all.
+    ms: atBreak ? breakMs : ms,
+    over: !atBreak && Boolean(timer && timer.mode === 'down' && ms <= 0),
+    atBreak,
+  };
+}
+
+/**
+ * The break countdown, in milliseconds left.
+ *
+ * Null when the match is not at its break. The countdown stops at zero: the
+ * second half is still started by the host, because the teams have to be back
+ * on their feet first.
+ */
+export function useBreakRemaining(match: Match | null | undefined): number | null {
+  const atBreak = match?.state === 'HALFTIME';
+  const endsAt = match?.timer.breakEndsAt ?? null;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!atBreak || endsAt === null) return;
+    setNow(Date.now());
+    // The match clock is stopped during the break, so this clock needs its own
+    // tick: it is the only thing moving on the wall.
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [atBreak, endsAt]);
+
+  if (!atBreak || endsAt === null) return null;
+  return Math.max(0, endsAt - now);
 }
 
 /** A ticking timestamp, for "saved 3s ago" style indicators. */

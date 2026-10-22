@@ -6,7 +6,7 @@
  * cannot reach the scoreboard, so this module ranks the candidates instead of
  * taking the first one it finds.
  */
-import { networkInterfaces } from 'node:os';
+import { hostname as osHostname, networkInterfaces } from 'node:os';
 import type { NetworkInfo } from '../../shared/types';
 
 export interface Candidate {
@@ -124,6 +124,7 @@ export function buildNetworkInfo(options: NetworkOptions): NetworkInfo {
     port: options.port,
     url: host ? `http://${host}:${options.port}` : `http://127.0.0.1:${options.port}`,
     mdnsName: options.mdnsName,
+    hostname: localHostname(),
     status,
     serverStartedAt: options.serverStartedAt,
     uptimeSec: Math.round((Date.now() - options.serverStartedAt) / 1000),
@@ -133,6 +134,22 @@ export function buildNetworkInfo(options: NetworkOptions): NetworkInfo {
 
 export function isIpLiteral(value: string): boolean {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(value);
+}
+
+/**
+ * This machine's short hostname, or '' when the platform will not say.
+ *
+ * It is deliberately the short name and not the FQDN: on a venue WLAN the DHCP
+ * name is what people type, and the domain suffix is whatever the router hands
+ * out that week. Used to decide which `Host` headers are ours, so a machine
+ * reached by name is not mistaken for an attacker.
+ */
+export function localHostname(): string {
+  try {
+    return osHostname().split('.')[0]?.toLowerCase() ?? '';
+  } catch {
+    return '';
+  }
 }
 
 /**

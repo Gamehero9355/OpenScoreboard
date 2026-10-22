@@ -77,6 +77,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
 
   const start = () => void run('match.start');
   const startSecondHalf = () => void run('match.startSecondHalf');
+  const endHalf = () => void run('match.endHalf');
   const pause = () => void run(match?.state === 'PAUSED' ? 'match.resume' : 'match.pause');
   const undo = () => void run('match.undo');
   const redo = () => void run('match.redo');
@@ -335,6 +336,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
                 match={match}
                 ms={clock.ms}
                 over={clock.over}
+                atBreak={clock.atBreak}
                 canControl={canControl}
                 busy={busy}
                 onSetDurationSec={(durationSec) => void run('match.setTimer', { durationSec })}
@@ -395,6 +397,23 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
                 <button type="button" className="op-btn op-btn--ghost" onClick={reset} disabled={!canControl || busy}>
                   {t('action.reset')}
                 </button>
+                {/* The break, called from the field: the clock stops and the
+                    teams change over, but the match goes on. Only the first
+                    half can end this way -- the second half is the last
+                    period, and ending it is ending the match. */}
+                {match.timer.periodCount === 2 &&
+                match.timer.period === 1 &&
+                (match.state === 'RUNNING' || match.state === 'PAUSED') ? (
+                  <button
+                    type="button"
+                    className="op-btn op-btn--ghost"
+                    onClick={endHalf}
+                    disabled={!canControl || busy}
+                    title={t('fc.endHalfHint')}
+                  >
+                    {t('action.endHalf')}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="op-btn op-btn--ghost"
@@ -430,7 +449,7 @@ export function OperatorPage({ fieldId }: { fieldId: FieldId }) {
 
       {showDisplay ? (
         <Modal title={t('display.title')} onClose={() => setShowDisplay(false)}>
-          <DisplayScreenPicker compact target={fieldId} />
+          <DisplayScreenPicker fieldIds={[fieldId]} density="sheet" />
         </Modal>
       ) : null}
 
@@ -472,6 +491,7 @@ function MatchClock({
   match,
   ms,
   over,
+  atBreak,
   canControl,
   busy,
   onSetDurationSec,
@@ -479,6 +499,7 @@ function MatchClock({
   match: Match;
   ms: number;
   over: boolean;
+  atBreak: boolean;
   canControl: boolean;
   busy: boolean;
   onSetDurationSec: (durationSec: number) => void;
@@ -518,7 +539,14 @@ function MatchClock({
     // clock counts down, so the box opens on what was just read. Floored, because
     // the board truncates too: rounding here is how a clock reading 8:55 came
     // back as 8:56 the moment it was touched.
-    const left = Math.floor(periodLeftSec(timer, Date.now()));
+    //
+    // At halftime it is the length of the half that is about to start: the half
+    // that is over is finished, and its clock is stopped at zero. The number
+    // the operator is about to retype is the one the next half will run for.
+    const left =
+      match.state === 'HALFTIME'
+        ? Math.floor(timer.periodDurationSec)
+        : Math.floor(periodLeftSec(timer, Date.now()));
     openedRef.current = left;
     setDraft(formatDurationInput(left));
     setUnreadable(false);
@@ -618,6 +646,10 @@ function MatchClock({
         </Button>
       </div>
       {editing ? <p className="hint center">{t('op.editClockHint')}</p> : null}
+      {/* During the break the number above is the break countdown, not the
+          match clock's. It says which one it is, because the two are read by
+          the same pair of eyes. */}
+      {!editing && atBreak ? <p className="hint center">{t('break.label')}</p> : null}
     </>
   );
 }

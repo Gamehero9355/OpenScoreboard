@@ -356,6 +356,39 @@ export function fixturesForDisplay(state: TournamentState): Match[] {
 }
 
 /**
+ * The games of the competition in the order the results list reads them.
+ *
+ * What is happening now comes first, then the games that are waiting to be
+ * played, and the games that have been played at the bottom -- the sheet read
+ * from the live end of the tournament back to where it started.
+ *
+ * Sorting the whole list by one timestamp does not do that, and the mix does
+ * not show in the code: a finished game is dated by when it *ended* and a
+ * running one by when it *started*, so a game that started before another
+ * ended sank below it, and a game that ended between two running ones landed
+ * between them. The list has to be ordered by what each game *is*, not by the
+ * one moment it happens to carry.
+ *
+ * The playing order is kept for the part that has not been played: "what do
+ * we call next" is answered from it, and that answer has to stay oldest-first
+ * or the queue would run backwards.
+ */
+export function gamesForResults(state: TournamentState): Match[] {
+  const fixtures = competitionFixtures(state);
+  // The games on a field right now: what the hall is watching.
+  const live = fixtures.filter((match) => match.state !== 'FINISHED' && isOnNow(state, match));
+  const liveIds = new Set(live.map((match) => match.id));
+  const rest = fixtures.filter((match) => !liveIds.has(match.id));
+  // The fixtures still to come, in playing order.
+  const waiting = rest.filter((match) => match.state !== 'FINISHED');
+  // The games that have been played, newest first, at the bottom of the list.
+  const done = rest
+    .filter((match) => match.state === 'FINISHED')
+    .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  return [...live, ...waiting, ...done];
+}
+
+/**
  * The one match an organiser should send people to next: the first fixture in
  * order that is neither decided nor already on a field and has both sides.
  *

@@ -20,7 +20,6 @@ import {
   asInt,
   asNumber,
   asString,
-  asMatchState,
   invalid,
   isRecord,
   valid,
@@ -539,6 +538,18 @@ export const COMMANDS = {
       return valid({ matchId, fieldId });
     },
   },
+  'match.endHalf': {
+    permission: 'operator',
+    fieldScoped: true,
+    validate: (payload) => {
+      const p = obj(payload);
+      const matchId = reqId(p, 'matchId');
+      if (!matchId) return invalid('matchId is required');
+      const fieldId = p.fieldId === undefined ? undefined : asFieldId(p.fieldId);
+      if (p.fieldId !== undefined && fieldId === undefined) return invalid('fieldId must be a playing field ("1".."8")');
+      return valid({ matchId, fieldId });
+    },
+  },
   'match.reset': {
     permission: 'operator',
     fieldScoped: true,
@@ -664,18 +675,6 @@ export const COMMANDS = {
       const a = p.participantAId === null || p.participantAId === undefined ? null : asString(p.participantAId, 64);
       const b = p.participantBId === null || p.participantBId === undefined ? null : asString(p.participantBId, 64);
       return valid({ matchId, participantAId: a, participantBId: b });
-    },
-  },
-  'match.setState': {
-    permission: 'admin',
-    fieldScoped: false,
-    validate: (payload) => {
-      const p = obj(payload);
-      const matchId = reqId(p, 'matchId');
-      if (!matchId) return invalid('matchId is required');
-      const state = asMatchState(p.state);
-      if (!state) return invalid('state is invalid');
-      return valid({ matchId, state });
     },
   },
   'match.reorder': {

@@ -63,7 +63,7 @@ export function MatchClock({
   label?: string;
   format?: (ms: number) => string;
 }) {
-  const { ms, over } = useMatchClock(match);
+  const { ms, over, atBreak } = useMatchClock(match);
   const { t } = useI18n();
   return (
     <span className={cx('row g2', className)}>
@@ -74,7 +74,7 @@ export function MatchClock({
           over && 'disp-clock__value--over',
           (match.state === 'PAUSED' || match.state === 'HALFTIME') && 'disp-clock__value--paused',
         )}
-        title={t(match.timer.mode === 'down' ? 'clock.down' : 'clock.up')}
+        title={t(atBreak ? 'break.label' : match.timer.mode === 'down' ? 'clock.down' : 'clock.up')}
       >
         {format(ms)}
       </span>

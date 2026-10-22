@@ -188,15 +188,27 @@ export class LiveClient {
   private open(): void {
     if (this.disposed) return;
     this.clearReconnect();
+    let socket: WebSocket;
     try {
-      this.socket = new WebSocket(this.url());
+      socket = new WebSocket(this.url());
     } catch {
       this.scheduleReconnect();
       return;
     }
+    this.socket = socket;
     this.patch({ connection: this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting' });
 
-    this.socket.onopen = () => {
+    // Every handler below is bound to *this* socket, not to `this.socket`. A
+    // superseded socket fires its events on a later tick -- `close()` in
+    // particular is asynchronous while `open()` runs to completion
+    // synchronously -- so a handler that trusted `this.socket` would let a dead
+    // connection stop the live one's ping, fail its pending commands and arm a
+    // reconnect that opens a third socket. Comparing the identity is what keeps
+    // "replace the socket" from leaking the old one.
+    const current = (): boolean => this.socket === socket;
+
+    socket.onopen = () => {
+      if (!current()) return;
       this.reconnectAttempt = 0;
       this.reconnectTimer = null;
       this.sendRaw({
@@ -211,15 +223,17 @@ export class LiveClient {
       this.startPing();
     };
 
-    this.socket.onmessage = (event: MessageEvent<string>) => {
+    socket.onmessage = (event: MessageEvent<string>) => {
+      if (!current()) return;
       this.handleMessage(String(event.data));
     };
 
-    this.socket.onerror = () => {
+    socket.onerror = () => {
       /* close fires next; nothing to do here */
     };
 
-    this.socket.onclose = () => {
+    socket.onclose = () => {
+      if (!current()) return;
       this.stopPing();
       this.failPending(tr('live.lost'));
       if (this.disposed || this.suppressReconnect) return;

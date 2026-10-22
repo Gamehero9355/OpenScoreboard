@@ -13,33 +13,41 @@
  * when the WLAN drops, which is the whole promise of the app.
  */
 import { useMemo } from 'react';
-import type { Match, TournamentState } from '../../shared/types';
-import { fieldDisplayName, logoOf, nameOf } from '../../shared/matchUtils';
-import { computeResults } from '../../shared/stats';
-import { useNow } from '../lib/hooks';
+import type { FieldId, Match, TournamentState } from '../../shared/types';
+import { fieldDisplayName, logoOf, matchAtBreak, nameOf } from '../../shared/matchUtils';
+import { computeResults, type TournamentResults } from '../../shared/stats';
+import { useBreakRemaining, useNow } from '../lib/hooks';
 import { intlTag } from '../lib/i18n';
 import { asTranslate, useI18n } from '../lib/useI18n';
-import { competitionFixtures, competitionProgress, roundNameLabel } from '../lib/radball';
-import { cx, formatTime } from '../lib/util';
+import { competitionFixtures, competitionProgress, groupNameLabel, roundNameLabel } from '../lib/radball';
+import { cx, formatClock, formatTime } from '../lib/util';
 import { Empty, MatchStateBadge } from './primitives';
 import { MatchClock } from './scoreboard';
 import { TeamCrest, CrestWithName } from './TeamCrest';
 import { RadballStandings } from './RadballStandings';
+import { playingGameFor, type PlayingGame, type SideStanding } from '../lib/displayStandings';
 
 /** The screens this file knows how to draw. `scores` is drawn by `DisplayPage`. */
 export function DisplayScreenView({
   screen,
   state,
   message,
+  fieldIds = [],
 }: {
   screen: string;
   state: TournamentState;
   message?: string | null;
+  /**
+   * The fields this display belongs to. The pause screen shows the game being
+   * played on them: a display belongs to one field, the combined display to
+   * all of them.
+   */
+  fieldIds?: FieldId[];
 }) {
   const resolved = message !== undefined ? message : (state.settings.displayMessage ?? null);
   switch (screen) {
     case 'pause':
-      return <PauseScreen state={state} message={resolved} />;
+      return <PauseScreen state={state} message={resolved} fieldIds={fieldIds} />;
     case 'logo':
       return <LogoScreen state={state} message={resolved} />;
     case 'clock':
@@ -58,14 +66,106 @@ function tournamentName(state: TournamentState): string {
   return state.tournament?.name ?? state.settings.tournamentName;
 }
 
-function PauseScreen({ state, message }: { state: TournamentState; message?: string | null }) {
+/**
+ * The pause notice, with the game that is stopping.
+ *
+ * "PAUSE" on its own tells the hall that the game stopped and nothing else.
+ * What the hall wants to know then is where *that game* stands: the two teams
+ * playing, their position in the table they belong to, and the score they are
+ * playing. Not the whole table -- a break lasts a couple of minutes, and the
+ * race the other groups are running is not the race the people in front of this
+ * screen are watching.
+ *
+ * So it is the game on *this* display's field: two fields run two groups in
+ * parallel, and the other group's table would be a different answer to the
+ * same question.
+ */
+function PauseScreen({
+  state,
+  message,
+  fieldIds,
+}: {
+  state: TournamentState;
+  message?: string | null;
+  fieldIds: FieldId[];
+}) {
   const { t } = useI18n();
   const text = (message ?? state.settings.displayMessage ?? '').trim();
+  const game = useMemo(() => playingGameFor(state, fieldIds), [state, fieldIds]);
+  // The break counts itself down on the wall, so the hall can see how long
+  // the pause has been running.
+  const breakMatch = useMemo(() => matchAtBreak(state, fieldIds), [state, fieldIds]);
+  const breakMs = useBreakRemaining(breakMatch);
+
   return (
-    <div className="dsp dsp--pause">
+    <div className={cx('dsp dsp--pause', game && 'dsp--pause--game')}>
       <span className="dsp__headline">{t('display.pause')}</span>
+      {breakMs !== null ? (
+        <span className="dsp__break tnum" title={t('break.label')}>
+          {formatClock(breakMs)}
+        </span>
+      ) : null}
       <span className="dsp__subject">{tournamentName(state)}</span>
       {text ? <p className="dsp__message">{text}</p> : null}
+      {game ? <PlayingGamePanel state={state} game={game} /> : null}
+    </div>
+  );
+}
+
+/**
+ * The game being played, and where its two teams stand.
+ *
+ * The two sides face each other with the live score between them, the way the
+ * score board shows them, and each side carries the number that answers "where
+ * do they stand": its place in the table.
+ */
+function PlayingGamePanel({ state, game }: { state: TournamentState; game: PlayingGame }) {
+  const { t } = useI18n();
+  const say = asTranslate(t);
+  const match = game.match;
+  return (
+    <section className="dsp__game">
+      <header className="dsp__game-head">
+        <h2 className="dsp__title">{game.groupName ? groupNameLabel(game.groupName, say) : t('nav.standings')}</h2>
+        {game.fieldId ? (
+          <span className="dsp__subject">
+            {fieldDisplayName(state.fields[game.fieldId]?.name, game.fieldId, say)}
+          </span>
+        ) : null}
+      </header>
+      <div className="dsp__game-duel">
+        <GameSide state={state} side={game.home} />
+        <span className="dsp__game-score tnum">
+          {match.scoreA} : {match.scoreB}
+        </span>
+        <GameSide state={state} side={game.away} />
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One side of the game: its name and its record.
+ *
+ * The place in the table belongs to the record underneath, not in front of the
+ * name: a number stuck to a team name reads as a shirt number.
+ */
+function GameSide({ state, side }: { state: TournamentState; side: SideStanding | null }) {
+  const { t } = useI18n();
+  if (!side || !side.teamId) return <span className="dsp__game-side" />;
+  return (
+    <div className="dsp__game-side">
+      <TeamCrest logo={logoOf(state, side.teamId)} size="xl" />
+      <span className="dsp__game-name">{nameOf(state, side.teamId)}</span>
+      {/* The standing in the table's own shorthand: "Platz 3 · MP 1 · Pkt. 1".
+          Spelling the record out would need a plural in every language --
+          "1 Spiele" is wrong in German -- and the abbreviations are what the
+          standings table itself prints, so the wall and the table speak the
+          same language. */}
+      <span className="dsp__game-record">
+        {side.rank !== null ? `${t('results.rank')} ${side.rank} · ` : null}MP {side.played} ·{' '}
+        {t('results.pts')} {side.points ?? '—'}
+      </span>
     </div>
   );
 }
@@ -168,40 +268,48 @@ function GenericStandings({ state }: { state: TournamentState }) {
       {rows.length === 0 ? (
         <Empty>{t('results.noMatches')}</Empty>
       ) : (
-        <table className="table dsp-table">
-          <thead>
-            <tr>
-              <th className="num">#</th>
-              <th>{t('results.participant')}</th>
-              <th className="num">{t('results.played')}</th>
-              <th className="num">{t('results.won')}</th>
-              <th className="num">{t('results.drawn')}</th>
-              <th className="num">{t('results.lost')}</th>
-              <th className="num">{t('results.for')}</th>
-              <th className="num">{t('results.against')}</th>
-              <th className="num">{t('results.diff')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.participantId}>
-                <td className="num faint tnum">{row.place ?? '—'}</td>
-                <td>
-                  <CrestWithName logo={logoOf(state, row.participantId)} name={row.name} />
-                </td>
-                <td className="num tnum">{row.played}</td>
-                <td className="num tnum">{row.wins}</td>
-                <td className="num tnum">{row.draws}</td>
-                <td className="num tnum">{row.losses}</td>
-                <td className="num tnum">{row.pointsFor}</td>
-                <td className="num tnum">{row.pointsAgainst}</td>
-                <td className="num tnum">{row.pointDifference > 0 ? `+${row.pointDifference}` : row.pointDifference}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <GenericStandingsTable state={state} rows={rows} />
       )}
     </div>
+  );
+}
+
+/** The table itself, so the pause screen can print the same one under its notice. */
+function GenericStandingsTable({ state, rows }: { state: TournamentState; rows: TournamentResults['rows'] }) {
+  const { t } = useI18n();
+  return (
+    <table className="table dsp-table">
+      <thead>
+        <tr>
+          <th className="num">#</th>
+          <th>{t('results.participant')}</th>
+          <th className="num">{t('results.played')}</th>
+          <th className="num">{t('results.won')}</th>
+          <th className="num">{t('results.drawn')}</th>
+          <th className="num">{t('results.lost')}</th>
+          <th className="num">{t('results.for')}</th>
+          <th className="num">{t('results.against')}</th>
+          <th className="num">{t('results.diff')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.participantId}>
+            <td className="num faint tnum">{row.place ?? '—'}</td>
+            <td>
+              <CrestWithName logo={logoOf(state, row.participantId)} name={row.name} />
+            </td>
+            <td className="num tnum">{row.played}</td>
+            <td className="num tnum">{row.wins}</td>
+            <td className="num tnum">{row.draws}</td>
+            <td className="num tnum">{row.losses}</td>
+            <td className="num tnum">{row.pointsFor}</td>
+            <td className="num tnum">{row.pointsAgainst}</td>
+            <td className="num tnum">{row.pointDifference > 0 ? `+${row.pointDifference}` : row.pointDifference}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

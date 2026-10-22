@@ -250,6 +250,42 @@ describe('sqlite snapshot recovery', () => {
     expect(reopened.state.participantOrder.length).toBe(4);
   });
 
+  it.skipIf(!sqliteModule)('keeps the shadow copy one save behind, not frozen at the second save', async () => {
+    // The shadow table holds exactly one row by design, so every save after the
+    // first conflicts with it. An upsert that does nothing on conflict freezes
+    // the shadow at the state from the start of the event, which is exactly the
+    // case the fallback exists for. Three saves, each distinguishable, is the
+    // smallest sequence that can tell "tracks the previous snapshot" apart from
+    // "stopped updating".
+    const dir = tempDir('sqlite-shadow-rotating');
+    const first = await TournamentStore.open(dir);
+    stores.push({ store: first, dir, dispose: async () => first.adapter.close() });
+    const ctx = adminCtx(first);
+    createQuickTournament(first, { name: 'Save One', participants: 4 });
+    await first.flush();
+    run(first, ctx, (state, _c, mut) => {
+      if (state.tournament) state.tournament.name = 'Save Two';
+      mut.settings = true;
+    });
+    await first.flush();
+    run(first, ctx, (state, _c, mut) => {
+      if (state.tournament) state.tournament.name = 'Save Three';
+      mut.settings = true;
+    });
+    await first.flush();
+    await first.adapter.close();
+
+    const db = new sqliteModule!.DatabaseSync(join(dir, 'tournament.sqlite'));
+    db.prepare('UPDATE snapshot SET data = ? WHERE id = 1').run('{ truncated mid-write');
+    db.close();
+
+    const reopened = await TournamentStore.open(dir);
+    stores.push({ store: reopened, dir, dispose: async () => reopened.adapter.close() });
+    // "Save Two" is the snapshot that preceded the corrupt one.
+    expect(reopened.state.tournament?.name).toBe('Save Two');
+    expect(reopened.state.participantOrder.length).toBe(4);
+  });
+
   it.skipIf(!sqliteModule)('starts empty rather than reporting a healthy database when nothing can be read', async () => {
     const dir = tempDir('sqlite-empty');
     const first = await TournamentStore.open(dir);

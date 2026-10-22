@@ -87,7 +87,7 @@ export const EVENT_TEXTS = {
   'event.matchReactivated': '{round} reactivated.',
   'event.matchReady': '{round} marked ready.',
   'event.matchNotReady': '{round} marked not ready.',
-  'event.matchHalftime': '{round} reached halftime.',
+  'event.matchHalftime': '{round} went to halftime.',
   'event.matchTimeUp': '{round} time is up.',
   'event.matchFinished': '{round} finished - {winner} wins {a}:{b}.',
   'event.matchDecided': '{round} decided - {winner} wins {a}:{b}.',

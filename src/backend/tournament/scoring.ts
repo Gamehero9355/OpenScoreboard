@@ -34,6 +34,17 @@ function applyScores(match: Match, a: number, b: number): void {
   match.scoreB = b;
 }
 
+/**
+ * Append to the undo stack, keeping it bounded.
+ *
+ * Both `record` and `redoScore` push here, so redoing an action that is about to
+ * fall off the bottom of the stack cannot grow it past the cap.
+ */
+function pushHistory(match: Match, action: ScoreAction): void {
+  match.history.push(action);
+  if (match.history.length > MAX_MATCH_HISTORY) match.history.splice(0, match.history.length - MAX_MATCH_HISTORY);
+}
+
 function record(
   match: Match,
   kind: ScoreActionKind,
@@ -59,8 +70,7 @@ function record(
     nextB: next.b,
     note,
   };
-  match.history.push(action);
-  if (match.history.length > MAX_MATCH_HISTORY) match.history.splice(0, match.history.length - MAX_MATCH_HISTORY);
+  pushHistory(match, action);
   match.redoStack = [];
   return action;
 }
@@ -127,7 +137,18 @@ export function updateScore(
   return action;
 }
 
-export function undoScore(state: TournamentState, match: Match, _ctx: Ctx, mut: Mutation): ScoreAction {
+/**
+ * Step one action back.
+ *
+ * §30: undo is only ever an inverse of a *live* change. A finished or cancelled
+ * match has already fed its winner into the bracket, the standings and the
+ * Radball tables, so replaying an old score over it would leave the scoreboard
+ * contradicting all three. `correctScore` is the operation for those matches --
+ * it resets the state, clears the winner and recalculates everything -- so undo
+ * refuses rather than silently corrupting the consequences.
+ */
+export function undoScore(state: TournamentState, match: Match, ctx: Ctx, mut: Mutation): ScoreAction {
+  requireEditable(match, ctx);
   const action = match.history.pop();
   if (!action) {
     throw new EngineError('INVALID_STATE', 'There is nothing to undo for this match.');
@@ -148,13 +169,14 @@ export function undoScore(state: TournamentState, match: Match, _ctx: Ctx, mut: 
   return action;
 }
 
-export function redoScore(state: TournamentState, match: Match, _ctx: Ctx, mut: Mutation): ScoreAction {
+export function redoScore(state: TournamentState, match: Match, ctx: Ctx, mut: Mutation): ScoreAction {
+  requireEditable(match, ctx);
   const action = match.redoStack.pop();
   if (!action) {
     throw new EngineError('INVALID_STATE', 'There is nothing to redo for this match.');
   }
   applyScores(match, action.nextA, action.nextB);
-  match.history.push(action);
+  pushHistory(match, action);
   touchMatch(mut, match.id);
   pushEvent(
     mut,
@@ -278,6 +300,8 @@ export function resetScores(
   match.loserId = null;
   match.finishedAt = null;
   match.startedAt = null;
+  // A reset match is a fresh match: it has no half behind it yet.
+  match.halftimeScore = null;
   resetTimer(match.timer, ctx.now);
   restoreConfiguredDuration(state, match);
   touchMatch(mut, match.id);

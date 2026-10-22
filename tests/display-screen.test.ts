@@ -21,6 +21,7 @@ import {
   displayMessageFor,
   displayScreenFor,
   isDisplayScreen,
+  screenAtBreak,
   type DisplayScreen,
 } from '../src/shared/types';
 
@@ -129,6 +130,18 @@ describe('the settings patch door', () => {
     const result = validateSettingsPatch({ displayScreen: 'clock' }, legacy as typeof DEFAULT_SETTINGS);
     expect(result.ok && (result.value.displayScreen as DisplayScreen)).toBe('clock');
   });
+
+  it('takes the break length as ordinary settings', () => {
+    const result = validateSettingsPatch({ breakDurationSec: 180 }, DEFAULT_SETTINGS);
+    expect(result.ok && result.value.breakDurationSec).toBe(180);
+
+    // A break has to be long enough to change over in, and short enough to
+    // sit through.
+    for (const bad of [0, 9, -60, 3601, '2', null]) {
+      const refused = validateSettingsPatch({ breakDurationSec: bad } as never, DEFAULT_SETTINGS);
+      expect(refused.ok, JSON.stringify(bad)).toBe(false);
+    }
+  });
 });
 
 describe('per-field resolution', () => {
@@ -156,5 +169,34 @@ describe('per-field resolution', () => {
     expect(displayMessageFor(perField, '1')).toBe('Pause auf Feld 1');
     expect(displayMessageFor(perField, '2')).toBe('Halbzeit');
     expect(displayMessageFor(perField, 'both')).toBe('Halbzeit');
+  });
+});
+
+describe('the break on a field screen', () => {
+  it('puts the pause notice up while the match is at halftime', () => {
+    // The board is what a field's screen shows by default, and the break is
+    // the one moment the hall has to be told the game stopped.
+    expect(screenAtBreak('scores', 'HALFTIME')).toBe('pause');
+  });
+
+  it('leaves a screen the host chose on purpose alone', () => {
+    // The break does not take over the wall clock, the crest or the tables.
+    for (const screen of ['clock', 'logo', 'standings', 'results', 'pause'] as DisplayScreen[]) {
+      expect(screenAtBreak(screen, 'HALFTIME'), screen).toBe(screen);
+    }
+  });
+
+  it('shows the board whenever the match is not at the break', () => {
+    for (const state of ['READY', 'ASSIGNED', 'RUNNING', 'PAUSED', 'FINISHED', 'CANCELLED', null, undefined]) {
+      expect(screenAtBreak('scores', state as never), String(state)).toBe('scores');
+    }
+  });
+
+  it('cannot leave a field stuck on the pause notice', () => {
+    // A match that is cancelled or taken off the field is no longer at the
+    // break, so the wall goes back to what it was showing.
+    expect(screenAtBreak('scores', 'CANCELLED')).toBe('scores');
+    expect(screenAtBreak('scores', 'FINISHED')).toBe('scores');
+    expect(screenAtBreak('scores', null)).toBe('scores');
   });
 });

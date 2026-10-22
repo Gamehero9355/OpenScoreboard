@@ -845,12 +845,129 @@
   color: var(--text-dim);
 }
 
+/* The break countdown under the PAUSE headline.
+   The headline says the game stopped; this says how long the pause has been
+   running, which is the one number the waiting teams and the audience read
+   while they wait. Amber like the headline, because it says the same thing. */
+.dsp__break {
+  font-size: clamp(2.4rem, 8vw, 7rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--warn);
+}
+
 .dsp__message {
   max-width: 26ch;
   margin: 0;
   font-size: clamp(1.3rem, 3.6vw, 3.2rem);
   font-weight: 700;
   line-height: 1.15;
+}
+
+/* The pause notice with the game that is stopping under it.
+   One picture, centred: the notice, the countdown and the game belong
+   together, so the whole block sits in the middle of the wall instead of
+   leaving a void under the notice and another above the floor. The headline
+   gives up some of its size for the game: a break is read at a glance, the
+   standing of the game is read closely. */
+.dsp--pause--game {
+  align-items: stretch;
+  justify-content: center;
+  text-align: left;
+  gap: var(--space-4);
+}
+.dsp--pause--game .dsp__headline {
+  width: 100%;
+  text-align: center;
+  font-size: clamp(2.6rem, 9vw, 7rem);
+}
+.dsp--pause--game .dsp__subject {
+  width: 100%;
+  text-align: center;
+}
+/* The break countdown belongs under the headline, in the middle of the wall
+   like everything else on this screen. Without the width and the centring it
+   sat in the far corner while the headline above it was centred -- the one
+   element on the screen that looked as if it had been dropped there. */
+.dsp--pause--game .dsp__break {
+  width: 100%;
+  text-align: center;
+  font-size: clamp(2rem, 6vw, 5rem);
+}
+.dsp--pause--game .dsp__message {
+  margin-inline: auto;
+  text-align: center;
+}
+
+/* The game: the two teams with the live score between them, each carrying the
+   number that answers "where do they stand" -- its place in the table.
+   No card behind them: the pause screen is one statement on the wall, and a
+   panel with an edge and a shadow around two names reads as a second box on a
+   projector. The teams sit straight on the screen's own background.
+
+   The sizes answer to the screen's height as well as its width: a projector
+   is wide and short, and a picture scaled to the width alone leaves the wall
+   half empty above and below it. */
+.dsp__game {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+.dsp__game-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+.dsp__game-duel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  /* Each side sits in the middle of its own third, so the three parts of the
+     picture -- team, score, team -- are spread evenly instead of leaving a
+     dead band in the middle of the wall. */
+  justify-items: center;
+  gap: var(--space-4) var(--space-6);
+  width: 100%;
+}
+.dsp__game-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  text-align: center;
+}
+.dsp__game-name {
+  font-size: clamp(1.8rem, min(5vw, 11vh), 5rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.dsp__game-record {
+  font-size: clamp(0.95rem, min(1.8vw, 3.4vh), 1.6rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.dsp__game-score {
+  font-size: clamp(3.5rem, min(11vw, 24vh), 13rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+/* The crest follows the names it belongs to: on a short projector wall the
+   names are the thing that has to stay readable. */
+.dsp__game .crest {
+  width: clamp(56px, min(10vw, 20vh), 160px);
+  height: clamp(56px, min(10vw, 20vh), 160px);
 }
 
 /* --- logo --- */
@@ -1493,13 +1610,14 @@
 }
 
 /* The gutter. A tick is a round name in the tournament's own words, and it is
-   content, so it leaves the uppercase chrome of the band and lane titles. It is
-   clamped to two lines because a group round name is the longest string on the
-   poster and the gutter is 40px. */
+   content, so it leaves the uppercase chrome of the band and lane titles. Its
+   box and its place in the gutter come from the layout, so the tick sits
+   exactly where the layout says the gutter is; it is clamped to two lines
+   because a group round name is the longest string on the poster and the
+   gutter is 40px. */
 .lane__tick {
   position: absolute;
   transform: translateY(-50%);
-  width: 40px;
   font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1.15;

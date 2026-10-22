@@ -25,6 +25,7 @@ import {
   competitionFixtures,
   fixtureRole,
   fixturesForDisplay,
+  gamesForResults,
   nextFixtureToCall,
 } from '../src/frontend/lib/radball';
 
@@ -880,6 +881,42 @@ describe('competition fixtures', () => {
     expect(fixturesForDisplay(store.store.state).map((m) => m.id)).toEqual(
       competitionFixtures(store.store.state).map((m) => m.id),
     );
+  });
+
+  it('keeps the running games together at the top of the results list', async () => {
+    const store = await makeStore('rb-results-order');
+    await createRadball(store, { teams: 4, groupCount: 1 });
+    clearFieldAssignments(store);
+    const fixtures = competitionFixtures(store.store.state);
+    const running = fixtures[0];
+    const other = fixtures[1];
+    const played = fixtures[2];
+    const waiting = fixtures[3];
+    run(store.store, adminCtx(store.store), (s, c, mut) => {
+      assignMatchToField(s, running.id, '1', c, mut);
+      assignMatchToField(s, other.id, '2', c, mut);
+      startMatch(s, running.id, '1', c, mut);
+      startMatch(s, other.id, '2', c, mut);
+      // A game that has been played, and one that ended between the two
+      // running ones started. A list sorted by one timestamp mixes "when it
+      // ended" with "when it started", and that is what put a finished game
+      // between two running ones.
+      s.matches[played.id].state = 'FINISHED';
+      s.matches[played.id].startedAt = 1_000;
+      s.matches[played.id].finishedAt = 2_000;
+      s.matches[running.id].startedAt = 1_500;
+      s.matches[other.id].startedAt = 3_000;
+    });
+
+    const state = store.store.state;
+    const shown = gamesForResults(state).map((m) => m.id);
+    // The two games on a field are at the top, together.
+    expect(shown.slice(0, 2).sort()).toEqual([running.id, other.id].sort());
+    // Then the games waiting to be played, in playing order.
+    expect(shown[2]).toBe(waiting.id);
+    // And the game that has been played at the bottom, not between them.
+    expect(shown[shown.length - 1]).toBe(played.id);
+    expect(shown.indexOf(played.id)).toBeGreaterThan(1);
   });
 
   it('calls the next fixture behind the one on a field', async () => {

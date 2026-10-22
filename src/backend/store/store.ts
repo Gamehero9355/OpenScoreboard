@@ -17,7 +17,13 @@ import type {
   SystemStatus,
   TournamentState,
 } from '../../shared/types';
-import { isDisplayScreen, isFieldId } from '../../shared/types';
+import {
+  DEFAULT_BREAK_DURATION_SEC,
+  isDisplayScreen,
+  isFieldId,
+  MAX_BREAK_DURATION_SEC,
+  MIN_BREAK_DURATION_SEC,
+} from '../../shared/types';
 import { sentenceMessage, type EventSentence } from '../../shared/eventMessages';
 import { EngineError } from '../util/errors';
 import { createIdGenerator } from '../util/ids';
@@ -30,6 +36,7 @@ import {
   type StoredEvent,
 } from '../database';
 import { MAX_EVENTS, createEmptyState } from '../tournament/defaults';
+import { enterHalftime } from '../tournament/matchops';
 import { sanitiseSavedTournamentLibrary } from '../tournament/saved';
 import { sanitiseTeamLibrary } from '../tournament/teams';
 import {
@@ -213,11 +220,9 @@ export class TournamentStore {
           match.timer.running = false;
           match.timer.anchorAt = null;
           if (match.timer.period === 1 && match.timer.periodCount === 2) {
-            match.state = 'HALFTIME';
-            pushEvent(mut, 'MATCH_HALFTIME', { key: 'event.matchHalftime', params: { round: match.roundName } }, {
-              matchId: match.id,
-              fieldId: match.fieldId,
-            });
+            // The same place the host's "End 1st half" goes through, so the
+            // break looks the same whichever way it came.
+            enterHalftime(state, match, mut, transitionAt);
           } else {
             match.timer.expired = true;
             match.state = 'PAUSED';
@@ -537,6 +542,31 @@ export interface BackupDocument {
 }
 
 /**
+ * Keep only the entries of a record map whose value is a usable object.
+ *
+ * `matches` and `participants` arrive from disk, from a restored backup file
+ * and from a hand-edited JSON file, so their *values* are as untrusted as the
+ * file itself. A single `"matches": {"m1": 5}` would otherwise reach the fix-ups
+ * below, where the first property write throws -- which is the crash this
+ * function exists to prevent, not fix.
+ */
+function objectRecord<K extends string, V>(input: unknown): Record<K, V> {
+  const out = {} as Record<K, V>;
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return out;
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) out[key as K] = value as V;
+  }
+  return out;
+}
+
+/** An array of ids, or an empty one. A persisted `"matchOrder": "abc"` must not
+ *  be iterated character by character by everything downstream. */
+function idArray(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((value): value is string => typeof value === 'string');
+}
+
+/**
  * Defensive normalisation of anything coming from disk: a corrupt or
  * hand-edited file must never crash the server.
  */
@@ -544,11 +574,14 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
   const base = createEmptyState(input.settings ?? undefined);
   const state: TournamentState = {
     ...base,
-    tournament: input.tournament ?? null,
-    participants: input.participants ?? {},
-    participantOrder: input.participantOrder ?? [],
-    matches: input.matches ?? {},
-    matchOrder: input.matchOrder ?? [],
+    // Every slice below is written by an older version of the app, by the
+    // restore endpoint or by a text editor, so nothing may be trusted about the
+    // shape -- not even that a record is a record or that an array is an array.
+    tournament: typeof input.tournament === 'object' && input.tournament !== null ? input.tournament : null,
+    participants: objectRecord(input.participants),
+    participantOrder: idArray(input.participantOrder),
+    matches: objectRecord(input.matches),
+    matchOrder: idArray(input.matchOrder),
     events: Array.isArray(input.events) ? input.events.slice(-MAX_EVENTS) : [],
     seq: typeof input.seq === 'number' ? input.seq : 0,
     updatedAt: typeof input.updatedAt === 'number' ? input.updatedAt : Date.now(),
@@ -556,7 +589,7 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
   // Merge persisted fields over the defaults so old two-field backups and new
   // multi-field states both load. Field names come from the settings; any
   // persisted field without a name keeps its own.
-  const rawFields = (input.fields ?? {}) as Record<string, TournamentState['fields'][string]>;
+  const rawFields = objectRecord<FieldId, FieldState>(input.fields);
   const names = Array.isArray(state.settings.fieldNames) && state.settings.fieldNames.length > 0
     ? state.settings.fieldNames
     : ['Field 1', 'Field 2'];
@@ -584,6 +617,17 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
   for (const match of Object.values(state.matches)) {
     if (!Array.isArray(match.history)) match.history = [];
     if (!Array.isArray(match.redoStack)) match.redoStack = [];
+    // A snapshot written before the break had a score carries no half-time
+    // result; an unrecognised one is treated the same way rather than
+    // reaching a result sheet that would print a number nobody scored.
+    if (
+      match.halftimeScore !== null &&
+      (typeof match.halftimeScore !== 'object' ||
+        !Number.isFinite(match.halftimeScore.a) ||
+        !Number.isFinite(match.halftimeScore.b))
+    ) {
+      match.halftimeScore = null;
+    }
     match.timer = normaliseTimerState(match.timer, state.settings.timerMode, state.settings.defaultMatchDurationSec);
     if (match.timer.running && match.state !== 'RUNNING') {
       match.timer.running = false;
@@ -615,7 +659,10 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
     if (participant.logo === undefined) participant.logo = null;
   }
   // The competition slice travels with backups and snapshots verbatim.
-  state.radball = (input.radball as TournamentState['radball']) ?? null;
+  state.radball =
+    typeof input.radball === 'object' && input.radball !== null && !Array.isArray(input.radball)
+      ? input.radball
+      : null;
   if (state.radball && typeof state.radball.decisionSeq !== 'number') {
     state.radball.decisionSeq = 0;
   }
@@ -623,6 +670,16 @@ function sanitiseState(input: Partial<TournamentState>): TournamentState {
   // unrecognised one is treated the same way rather than reaching the client.
   if (state.settings.language !== 'en' && state.settings.language !== 'de') {
     state.settings.language = 'en';
+  }
+  // Likewise the break length: a snapshot written before the break had a clock
+  // carries no value, and one that is not a usable length falls back to the
+  // default rather than leaving the pause without a countdown.
+  if (
+    !Number.isFinite(state.settings.breakDurationSec) ||
+    state.settings.breakDurationSec < MIN_BREAK_DURATION_SEC ||
+    state.settings.breakDurationSec > MAX_BREAK_DURATION_SEC
+  ) {
+    state.settings.breakDurationSec = DEFAULT_BREAK_DURATION_SEC;
   }
   // Snapshots written before per-field displays existed carry only the global
   // screen. Unknown values fall back to the board so a hand-edited file never

@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo } from 'react';
 import type { TournamentFormat } from '../../shared/types';
-import { isRealMatch, nameOf } from '../../shared/matchUtils';
+import { fieldName, isRealMatch, nameOf } from '../../shared/matchUtils';
 import { computeResults } from '../../shared/stats';
 import { useDocumentTitle, useLive } from '../lib/hooks';
 import { useI18n } from '../lib/useI18n';
@@ -185,13 +185,19 @@ export function PrintPage({ kind }: { kind: PrintKind }) {
                   {match.roundName}
                   {match.isThirdPlace ? ` · ${t('round.thirdPlace')}` : ''}
                 </td>
-                <td>{match.fieldId ? state.fields[match.fieldId].name : ''}</td>
+                <td>{match.fieldId ? fieldName(state, match.fieldId) : ''}</td>
                 <td className="mono small">{formatTime(match.finishedAt ?? 0, locale)}</td>
                 <td>
                   {nameOf(state, match.participantAId)} vs {nameOf(state, match.participantBId)}
                 </td>
                 <td className="num">
                   {match.scoreA} : {match.scoreB}
+                  {match.halftimeScore ? (
+                    <span className="results__half" title={t('results.halftimeScore')}>
+                      {' '}
+                      ({match.halftimeScore.a} : {match.halftimeScore.b})
+                    </span>
+                  ) : null}
                 </td>
                 <td>{match.winnerId ? nameOf(state, match.winnerId) : t('score.draw')}</td>
               </tr>

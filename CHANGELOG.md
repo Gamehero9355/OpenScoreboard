@@ -14,6 +14,98 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 ### Added
 
+- **The pause notice on a field's screen shows that field's game.** "PAUSE" on its
+  own told the hall that the game stopped and nothing else — and a hall waiting
+  for the teams to come back is exactly the moment the people in it want to know
+  where the game stands. The pause screen now shows **the game that is being
+  played**: the two teams, the live score between them, and each team's place in
+  the table it belongs to, with its record underneath. It is the game on *that
+  display's* field, because two fields run two groups in parallel and the other
+  group's race is not the race the people in front of this screen are watching.
+  Not the whole table either: a break lasts a couple of minutes, and the other
+  teams in the group are not what the room is asking about. The standing is the
+  server's own ranking, recomputed after every result — nothing is counted on
+  the projector. A knockout has no groups, so the tournament table stands in
+  for them. The notice, the countdown and the game are one centred picture
+  rather than a notice at the top of the wall and a game floating in the middle
+  of it, and the sizes answer to the screen's height as well as its width — a
+  projector is wide and short, and a picture scaled to the width alone leaves
+  the wall half empty.
+
+- **The results list no longer puts a finished game between two running ones.**
+  The list was sorted by one timestamp, but the two kinds of game carry
+  different ones: a finished game is dated by when it *ended* and a running one
+  by when it *started*. A game that started before another ended therefore sank
+  below it, and a game that ended between two running ones landed between
+  them — so the games on a field were scattered through the list instead of
+  being together at the top of it, which is where the page has always meant to
+  put them. The list is now ordered by what each game *is*: **the games being
+  played right now at the top, then the games waiting to be played, and the
+  games that have been played at the bottom** — the sheet read from the live
+  end of the tournament back to where it started.
+
+- **Each game shows the score it had at the break, beside its final one.** A
+  result is reported as its two halves as well as its final whistle, so the
+  results tab now prints "5 : 3 (2 : 1)" — the bracket is the score at
+  half-time, in the dimmer weight, so the final one stays the headline. The
+  half-time score is kept by the engine when the match reaches its break, by
+  whichever way it got there (the clock running out or the host calling it), so
+  a game that was called early reports the score it really stood at rather than
+  a number derived from a clock that never ran out. A game that finished 0 : 0
+  also shows its result now: a goalless draw that happened is not the same as
+  a fixture that was never played, and the results tab used to leave the first
+  one blank.
+
+- **The break between the two halves counts itself down.** A match in two halves
+  stops at its break, and until now the pause had no clock of its own: the match
+  clock was stopped at zero and the hall saw a "PAUSE" notice with nothing on
+  it. The break now starts a countdown of two minutes — the length the host
+  sets in *Settings → Scoring → Clock*, so a hall can make it one minute or
+  five — and it runs on the wall under the PAUSE headline, on the host's field
+  card and on the operator's phone, which is where the people waiting for the
+  teams to come back are looking. The countdown **stops at zero** rather than
+  starting the second half by itself: the teams have to be back on their feet
+  first, and that is the host's call — the same rule the app already follows
+  when a match clock runs out. Ending the pause early is the *Start second
+  half* press, which is there and now has a clock to cut short. The countdown
+  is an anchor like every other clock in the app: the server publishes the
+  moment the break ends and each screen counts down on its own.
+
+- **A field's screen says PAUSE while its match is at the break.** A match in two
+  halves stops at its break — by the clock running out, or by the host calling
+  it — and the hall has to be told that the game stopped, so the field's own
+  screen puts the pause notice up for the duration of the break. The score
+  board comes back by itself when the second half starts, because the screen
+  was never changed: only what is drawn on it, so the rule cannot leave a field
+  stuck on the pause notice — a match that is cancelled, finished or taken off
+  the field is no longer at the break. A screen the host put there on purpose
+  — the wall clock, the club crest, the tables — keeps that picture: the break
+  does not take over a screen the host chose. The combined display shows every
+  field at once and therefore never takes one field's break onto the whole
+  wall, because the other field may still be playing. The host's console says
+  the same thing at the same moment: the lit tile and the "now shows" line name
+  the picture that is on the wall, not the setting behind it, so the switch is
+  visible from the desk without looking at the projector. The break never
+  writes to the setting, so it cannot leave a field on the pause notice — and
+  a message typed during the break is saved against the screen the field is
+  *set* to, so the board still comes back when the second half starts.
+
+- **The host can call the break without ending the match.** A match in two halves
+  reaches its break by itself — the clock runs out, the board says *Halftime*, and
+  the second half starts on the next press. But a hall decides when the break
+  comes: the coach waves the teams over early, the second half has to start
+  before the first one has run its full length, or the hall simply wants the
+  break now. **End 1st half** sits next to *End match* on the host dashboard and on
+  the operator's phone, and does only that: the match goes to the break, the clock
+  on the wall reads zero — exactly as it does when the clock runs out on its own —
+  the score is kept, and the match is **not** over: *Start second half* puts the
+  second half on with a full clock of its own. The
+  button exists only while the first half is under way. A match in one half has no
+  break to go to, and the second half is the last period of the match, so ending
+  it is ending the match — which *End match* does, with the winner still to be
+  decided. Nothing about the automatic break changed: the clock reaching the end
+  of a period still stops the clock and puts the match at halftime on its own.
+
 - **The clock on the field operator panel can be set by typing, not only by
   the minute.** −1m and +1m reach the lengths a hall plans for, but not the ones
   it decides on mid-event — a shortened half because the next group is already
@@ -35,12 +127,12 @@ claimed to do, not as a list of regressions that were shipped and later patched.
 
 - **Each field display can now show something different.** Every playing field
   owns its TV page (`/display/1`, `/display/2`, ...), and the host dashboard
-  carries one control that follows the open field tab: on Field 1's tab it
-  switches Field 1's TV between game, clock, standings and the other screens,
-  so a tap can never land on the wrong field. A field operator's display
-  dialog switches their own field's TV (switching another field's is refused).
-  Per-field choices fall back to the combined value until set, survive
-  restarts and backups, and a TV that reconnects lands on the right screen.
+  carries a console for them: the console edits the screen of the field the
+  host has open, so a tap cannot land on the wrong field and the other field's
+  TV is no longer out of reach, and a field operator's display dialog switches
+  their own field's TV (switching another field's is refused). Per-field choices
+  fall back to the combined value until set, survive restarts and backups, and a
+  TV that reconnects lands on the right screen.
 
 - **The projector can be switched between the scores and five other hall
   screens, from either dashboard.** The display has always drawn one thing: a
@@ -58,6 +150,44 @@ claimed to do, not as a list of regressions that were shipped and later patched.
   `display.setScreen` is an operator command that writes the settings slice.
   The score board is the default, so a hall that never touches the switcher sees
   exactly what it always saw.
+
+  **The switcher itself was rebuilt, because the names were not enough.** It was
+  a native dropdown in the host's side rail: closed by default, so all six
+  possibilities sat behind one click, and the six words — "Tabellen",
+  "Spielplan", "Spielstand" — are the sort of thing a volunteer cannot tell
+  apart before they have seen the projector. The field that was about to change
+  was named in faint 12px capitals above the dropdown, and only the field whose
+  tab was open could be reached at all. The console now shows the pictures: one
+  tile per screen, each carrying a wireframe of what that screen looks like on
+  the wall — two score panels and a clock for the board, a wide slab for the
+  pause notice, the club crest, the clock face, the table with its header band,
+  the running list with its result boxes — beside the screen's name, so the
+  choice is made by recognising the screen rather than by trusting a word.
+
+  **The console answers two questions, and it keeps them apart.** "Which field?"
+  and "which screen?" were the same kind of square button in the same
+  three-column grid, so a two-field hall showed three chips above six tiles and
+  the whole panel read as a 3 × 3 box of buttons: the host could not tell at a
+  glance which row changed the field and which changed the picture on the wall.
+  The field is now a row of round pills under a *Field* label, the screen a grid
+  of picture tiles under a *Screen* label, and a line between the two says what
+  is on the wall right now — *Field 1 now shows Pause* — so "what is up there"
+  and "what I am about to put there" can never be mistaken for one another.
+
+  **The console edits the field the host is on, and says which one that is.**
+  The dashboard already answers the field question: the tab at the top of the
+  page is the field the host is working on. So the console does not ask it a
+  second time — it offers that field and, as the only other choice, *All
+  fields*, which puts every TV on the same picture in a single tap (the move a
+  host makes when the hall pauses for the presentation and again when it
+  starts). The field row follows the tab, and *All fields* does not follow the
+  host to the next field: a tap on a screen tile has to change the field the
+  host is on, or a tile meant for one field would quietly change both. Fields
+  that disagree say so and name each field's picture instead of lighting a tile
+  that means nothing. A refused command is now said out loud rather than dropped
+  in silence, so a screen that did not move says why. The field operator gets the
+  same tiles with bigger pictures and labels, because there is one field to
+  choose and the phone is the only thing in the hand.
 
 - **A tagged version publishes its own Windows installer.** Until now the installer only
 existed as a build artifact attached to a workflow run, which expires after 30 days and is
@@ -130,6 +260,25 @@ third-party action is trusted with a token that can write to the repository.
 
 ### Changed
 
+- **The two group tables in the 10-team tournament tree are league tables now,
+  not two columns of numbers in a wide box.** The card that holds a group is as
+  wide as the panel it sits in, and five rows of names stretched across it left a
+  void the eye read as a mistake: the goal difference and the points sat in the
+  far corner, and the strip above them named only those two, so the table looked
+  like a layout that had given up halfway across. The width now carries the
+  group's own figures — **played, won, drawn, lost, goal difference and points**,
+  the same columns, in the same short labels (MP, W, D, L, GD, PTS) and with the
+  same tooltips, as the official table on the Standings page, so the two read as
+  one table at two sizes. The header strip names every column across the whole
+  width, the position is a plain label in the table's own index column instead of
+  a filled chip that read as a button, and the two squads that go through carry
+  the mark on the position *and* on the points — the position is what a volunteer
+  is told, the points are what they check. The table keeps the width its labels
+  need and the card scrolls it sideways on a phone, the way the official table
+  does; on the hall screen and the host's laptop there is nothing to scroll.
+  Nothing else about the tree moved: same panels, same cards, same final-phase
+  ladder, same position wires, same data.
+
 - **The Platz-Bedienung is a referee slate that fits the device in your hand, not a
   stretched phone screenshot on a PC.** The old layout was one centred 860px
   column whose player cards flexed to fill whatever height the window offered, so
@@ -190,6 +339,71 @@ third-party action is trusted with a token that can write to the repository.
   so a format gaining a step is one change rather than seven.
 
 ### Fixed
+
+- **The links under the QR codes on the start page were folded over five and nine
+  lines.** A URL is one long word, so a browser breaks it wherever it runs out of
+  room — through a hostname, through a token — and the address under each QR code
+  in the gallery came out as a wall of fragments: a link with the host's token in
+  it took **nine** lines, and the tile it sat in grew taller than the screen it
+  was on. Three things changed. The address now breaks at the places a person
+  would break it — after the scheme, after each path segment, before the
+  fragment — and never mid-word. The gallery asks for tiles twenty rem wide and
+  takes as many as fit, so the narrow rail gets one roomy column instead of two
+  crushed ones, and the address has the tile's whole width with the *Copy link*
+  hint underneath it rather than stealing a fifth of the row. And the address in
+  a tile is one or two lines: the host's own link, the longest of them, is two.
+  The side rail is no longer than it was — the tiles lost more height to the
+  shorter addresses than the single column cost. The same component is used for
+  the QR dialog on the host dashboard and for each field's operator code, and
+  both are fixed by the same change.
+
+- **The league's tournament tree was laid out around a phase band that was twice
+  as wide as the groups under it.** A phase's groups are lanes that *stack*, one
+  under the other, but the band's width was the **sum** of their widths: with two
+  groups the "Group stage" header stretched over twice the space the groups
+  occupied, and the next phase — the final round — stood a whole band's worth of
+  nothing further to the right. The band is now as wide as its widest lane, the
+  lanes are centred in it, and the tree closes up: a two-group Radball league is
+  a third narrower on the poster than it was, and the final round sits where it
+  belongs, next to the group stage it is fed by. A group with fewer fixtures
+  than its neighbour no longer hangs off the band's left edge.
+
+- **The qualification chips did not line up with the fixtures they came from.**
+  A chip is the leaf a team's path leaves the tree by, and it was drawn across
+  the lane's whole width — 46px further left than the fixtures above it, reaching
+  into the round gutter the labels live in. A chip now starts and ends where the
+  fixtures it qualifies from start and end, so "these teams are through" is
+  read off the same column as "these are the games".
+
+- **The round tick in a lane's gutter was glued to the lane's own border.** The
+  gutter is 46px wide and the tick was drawn at the lane's very edge, 18px from
+  the fixtures it labels, while the lane's header sat 12px in. The tick's box
+  now comes from the layout, like everything else on the poster, and sits in the
+  gutter where the layout says the gutter is.
+
+- **The Final lane said "Final" twice.** A lane whose header already names its
+  single round — the Final lane is both — drew a round tick that repeated the
+  header's own word, and kept a 46px gutter for it. The comparison now ignores
+  case and works on the meaning rather than on the two strings, because the
+  engine writes its round names in English ("Final") and the catalogue's name
+  for the final is translated ("Finale") — so the German tree said "Finale" over
+  a gutter that said "Final". Such a lane now draws no tick, and is exactly as
+  wide as the match it holds.
+
+- **The champion plate sat flush against the right edge of the poster.** Every
+  other element on the poster keeps a margin; the crown, being last, had none.
+  It keeps the poster's own padding now.
+
+- **Panels in the side rail were cut off at the bottom instead of scrolling.** The
+  rail is a flex column with a height limit and its own scrollbar, and its
+  children were free to shrink — so when the column was taller than the rail,
+  the panels were squeezed to fit instead of the rail scrolling, and a panel
+  hides its own overflow: the bottom rows of the field list, the completed
+  results and the activity feed were simply gone, with nothing to say so. On the
+  home page the join card and the QR gallery were cut the same way. The rail's
+  panels now keep their height and the rail scrolls, which is what its
+  scrollbar was always for: a panel the host has to scroll to is a panel they
+  can read whole.
 
 - **The two team cards on a wide field operator panel sat in the left half of
   the screen.** The cards carry `flex: 0 0 auto`, which is what a stacked phone

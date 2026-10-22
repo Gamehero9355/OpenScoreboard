@@ -631,6 +631,55 @@ describe('variable playing fields', () => {
     });
     expect(Object.keys(env.store.state.fields)).toEqual(['1', '2']);
   });
+
+  it('refuses to remove a field a match still names, even when the field looks free', () => {
+    // The other direction of the same relationship. `fields['3'].matchId` can be
+    // null while a match still carries `fieldId: '3'` -- a hand-edited or
+    // partially-written file can disagree with itself. Letting the removal
+    // through left a `fieldId` that no state has any more, which the boards,
+    // the print sheet and the results table all dereference.
+    const ctx = adminCtx(env.store);
+    run(env.store, ctx, (state, c, mut) => {
+      createTournament(
+        state,
+        {
+          name: 'Three Field Cup',
+          format: 'single-elimination',
+          participants: participants(4),
+          thirdPlaceMatch: false,
+          seeded: true,
+          seedValue: null,
+          settings: null,
+          generateBracketNow: true,
+          fieldNames: ['A', 'B', 'C'],
+        },
+        c,
+        mut,
+      );
+    });
+    expect(Object.keys(env.store.state.fields)).toEqual(['1', '2', '3']);
+
+    const open = Object.values(env.store.state.matches).filter((m) => m.state === 'READY' || m.state === 'ASSIGNED');
+    run(env.store, ctx, (state, c, mut) => {
+      assignMatchToField(state, open[0].id, '3', c, mut);
+    });
+    // Now make the field look free while the match still names it.
+    run(env.store, ctx, (state, _c, mut) => {
+      const field = state.fields['3'];
+      if (field) field.matchId = null;
+      mut.fields.add('3');
+    });
+    const match = env.store.state.matches[open[0].id];
+    expect(match.fieldId).toBe('3');
+    expect(env.store.state.fields['3'].matchId).toBeNull();
+
+    run(env.store, ctx, (state, _c, mut) => {
+      expectEngineError(() => setFieldNames(state, ['A', 'B'], mut), 'FIELD_BUSY');
+    });
+    // Refused, so nothing moved.
+    expect(Object.keys(env.store.state.fields)).toEqual(['1', '2', '3']);
+    expect(env.store.state.matches[open[0].id].fieldId).toBe('3');
+  });
 });
 
 describe('manual bracket draw', () => {

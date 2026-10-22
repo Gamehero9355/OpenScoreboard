@@ -149,16 +149,18 @@ describe('date and number formatting', () => {
     expect(intlTag('en', 'date')).toBe('en-GB');
   });
 
-  it('formats a timestamp without throwing', () => {
-    const ts = Date.UTC(2026, 9, 8, 14, 30);
+  it('resolves an Intl tag for every locale and every field', () => {
+    // The formatting itself is `Intl`'s job; this only guards the plumbing,
+    // i.e. that the tag handed to `Intl.DateTimeFormat` / `NumberFormat` is one
+    // the runtime actually accepts. A malformed tag throws `RangeError` at
+    // construction time, which on a projector screen is a blank display.
     for (const locale of LOCALES) {
-      const out = translate('en', 'action.save');
-      expect(out.length).toBeGreaterThan(0);
-      // The formatting itself is `Intl`'s job; this only guards the plumbing.
-      expect(() => intlTag(locale, 'date')).not.toThrow();
-      expect(() => intlTag(locale, 'time')).not.toThrow();
-      expect(() => intlTag(locale, 'number')).not.toThrow();
-      expect(Number.isFinite(ts)).toBe(true);
+      for (const field of ['date', 'time', 'number'] as const) {
+        const tag = intlTag(locale, field);
+        expect(tag.length, `${locale}.${field}`).toBeGreaterThan(0);
+        expect(() => new Intl.DateTimeFormat(tag)).not.toThrow();
+        expect(() => new Intl.NumberFormat(tag)).not.toThrow();
+      }
     }
   });
 });
@@ -177,11 +179,19 @@ describe('the per-device override is shared, not per component', () => {
     const original = store.get();
     let first = 0;
     let second = 0;
+    // Two independent readers, as two components would be: each keeps the value
+    // it last saw and updates it only inside its own notification. Comparing
+    // `store.get()` with itself would pass even if every caller had its own
+    // private copy, which is the regression this test exists for.
+    let seenByFirst = store.get();
+    let seenBySecond = store.get();
     const offA = store.subscribe(() => {
       first += 1;
+      seenByFirst = store.get();
     });
     const offB = store.subscribe(() => {
       second += 1;
+      seenBySecond = store.get();
     });
     try {
       store.set('de');
@@ -189,7 +199,9 @@ describe('the per-device override is shared, not per component', () => {
       expect(second).toBeGreaterThan(0);
       expect(store.get()).toBe('de');
       // Every caller now reads the same value, which is the whole point.
-      expect(store.get()).toBe(store.get());
+      expect(seenByFirst).toBe('de');
+      expect(seenBySecond).toBe('de');
+      expect(seenByFirst).toBe(seenBySecond);
 
       store.set(null);
       expect(first).toBeGreaterThan(1);

@@ -7,6 +7,7 @@
  * "copy the winner across" step that could run twice.
  */
 import type { Match, TournamentState } from '../../shared/types';
+import { decidingMatchIds } from '../../shared/matchUtils';
 import { EngineError } from '../util/errors';
 import { roundCount } from './bracket';
 import {
@@ -54,36 +55,7 @@ export function releaseField(state: TournamentState, fieldId: string, mut: Mutat
 }
 
 /** The match that decides the tournament, if the bracket has one. */
-export function decidingMatchIds(state: TournamentState): string[] {
-  if (!state.tournament) return [];
-  // A manual schedule has no decider: every fixture is one the host wrote down,
-  // and crowning the winner of whichever one happens to sit last would be a
-  // champion named by an accident of ordering. The host ends the event
-  // deliberately, with `tournament.complete`.
-  if (state.tournament.format === 'manual-schedule') return [];
-  const ids: string[] = [];
-  const reset = Object.values(state.matches).find((m) => m.bracket === 'reset' && m.state !== 'CANCELLED');
-  if (reset) return [reset.id];
-  if (state.tournament.format === 'double-elimination') {
-    const final = Object.values(state.matches).find((m) => m.bracket === 'final');
-    if (final) return [final.id];
-  }
-  let best: Match | null = null;
-  for (const match of Object.values(state.matches)) {
-    if (match.bracket !== 'winners' || match.isThirdPlace) continue;
-    if (!best) {
-      best = match;
-      continue;
-    }
-    // Two-element tuples read as a pair here; the destructuring says so rather than
-    // leaving the compiler to reason about `number | undefined` at index 0 and 1.
-    const [bestRound, bestPosition] = [best.round, best.position];
-    const [round, position] = [match.round, match.position];
-    if (round > bestRound || (round === bestRound && position < bestPosition)) best = match;
-  }
-  if (best) ids.push(best.id);
-  return ids;
-}
+export { decidingMatchIds } from '../../shared/matchUtils';
 
 function createResetMatch(state: TournamentState, grandFinal: Match, ctx: Ctx, mut: Mutation): Match {
   const id = `${grandFinal.tournamentId}:grand-final-reset`;
@@ -115,6 +87,7 @@ function createResetMatch(state: TournamentState, grandFinal: Match, ctx: Ctx, m
     loserId: null,
     startedAt: null,
     finishedAt: null,
+    halftimeScore: null,
     timer: createTimerState(state.settings.timerMode, state.settings.defaultMatchDurationSec),
     nextWinMatchId: null,
     nextWinSlot: null,

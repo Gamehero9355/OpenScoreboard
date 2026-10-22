@@ -57,12 +57,12 @@ export function matchesCsv(state: TournamentState): string {
       match.roundName,
       match.position + 1,
       match.state,
-      // A match can name a field this state no longer has: `setFieldNames`
-      // rebuilds `state.fields` and only checks the field-to-match direction,
-      // and a restored backup can carry a `fieldId` that its own field list does
-      // not contain. This route is unauthenticated, so one dangling id must not
-      // be able to 500 the whole export. `participantsCsv` below reads the same
-      // map the same defensive way.
+      // A match can still name a field this state has no entry for. `setFieldNames`
+      // now refuses to drop a field a match names, but a backup restored from an
+      // older build, or a file edited by hand, can carry a `fieldId` its own
+      // field list does not contain. This route is unauthenticated, so one
+      // dangling id must not be able to 500 the whole export. `participantsCsv`
+      // below reads the same map the same defensive way.
       match.fieldId ? (state.fields[match.fieldId]?.name ?? `Field ${match.fieldId}`) : '',
       nameOf(state, match.participantAId, ''),
       nameOf(state, match.participantBId, ''),

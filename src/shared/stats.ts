@@ -4,7 +4,7 @@
  * the printable report.
  */
 import type { Match, Participant, TournamentState } from './types';
-import { isRealMatch } from './matchUtils';
+import { decidingMatch, isRealMatch } from './matchUtils';
 
 export interface ParticipantStats {
   participantId: string;
@@ -69,29 +69,16 @@ export function eliminatedRound(state: TournamentState, participantId: string): 
   return worst;
 }
 
-export function decidingMatch(state: TournamentState): Match | null {
-  if (!state.tournament) return null;
-  // A manual schedule has no deciding match: its fixtures are whatever the host
-  // wrote down, so "the last one" is an accident of ordering rather than a
-  // final. `decidingMatchIds` in the engine answers the same way, and the two
-  // must agree or the results report would crown a champion the tournament
-  // itself refuses to.
-  if (state.tournament.format === 'manual-schedule') return null;
-  const reset = Object.values(state.matches).find((m) => m.bracket === 'reset' && m.state === 'FINISHED');
-  if (reset) return reset;
-  if (state.tournament.format === 'double-elimination') {
-    const final = Object.values(state.matches).find((m) => m.bracket === 'final');
-    if (final) return final;
-  }
-  let best: Match | null = null;
-  for (const match of Object.values(state.matches)) {
-    if (match.bracket !== 'winners' || match.isThirdPlace) continue;
-    if (!best || match.round > best.round || (match.round === best.round && match.position < best.position)) {
-      best = match;
-    }
-  }
-  return best;
-}
+/**
+ * The match that decides the tournament.
+ *
+ * Delegates to the engine's rule in `matchUtils` rather than restating it. The
+ * two used to differ: this one looked for a `FINISHED` reset and so pointed at
+ * the grand final while a generated-but-unplayed reset was waiting -- a report
+ * naming a champion the tournament itself refused to crown. One implementation
+ * means that class of disagreement cannot come back.
+ */
+export { decidingMatch };
 
 export function computeResults(state: TournamentState): TournamentResults {
   const rows = new Map<string, ParticipantStats>();

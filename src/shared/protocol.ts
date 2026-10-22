@@ -4,7 +4,16 @@
  * checked before it reaches the tournament engine.
  */
 import type { ClientMessage, FieldId, Settings, MatchState } from './types';
-import { DISPLAY_SCREENS, MAX_FIELDS, MIN_FIELDS, PROTOCOL_VERSION, isDisplayScreen, isFieldId } from './types';
+import {
+  DISPLAY_SCREENS,
+  MAX_BREAK_DURATION_SEC,
+  MAX_FIELDS,
+  MIN_BREAK_DURATION_SEC,
+  MIN_FIELDS,
+  PROTOCOL_VERSION,
+  isDisplayScreen,
+  isFieldId,
+} from './types';
 
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -282,6 +291,14 @@ export function validateSettingsPatch(patch: SettingsPatch, current: Settings): 
         const v = asNumber(raw, 10, 24 * 60 * 60);
         if (v === null) return invalid('defaultMatchDurationSec must be 10..86400');
         out.defaultMatchDurationSec = v;
+        break;
+      }
+      case 'breakDurationSec': {
+        const v = asNumber(raw, MIN_BREAK_DURATION_SEC, MAX_BREAK_DURATION_SEC);
+        if (v === null) {
+          return invalid(`breakDurationSec must be ${MIN_BREAK_DURATION_SEC}..${MAX_BREAK_DURATION_SEC}`);
+        }
+        out.breakDurationSec = v;
         break;
       }
       case 'scoringIncrements': {

@@ -615,7 +615,7 @@ function TreeLane({
         <span
           key={tick.key}
           className="lane__tick"
-          style={{ left: 0, top: tick.y - lane.y }}
+          style={{ left: tick.x, width: tick.width, top: tick.y - lane.y }}
           title={tick.fullTitle}
         >
           {tick.title}

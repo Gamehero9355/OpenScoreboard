@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -345,6 +346,11 @@ describe('store.apply rollback', () => {
     const { store, dispose } = await createTestStore('rollback');
     try {
       createQuickTournament(store, { participants: 4 });
+      // The identity of the state object itself is part of the contract: cached
+      // references in `subscribe` listeners and in React's snapshot store are
+      // only safe while `apply` mutates the object it was handed instead of
+      // swapping a new one in. Capture it *before* the refused operation.
+      const stateObject = store.state;
       const before = {
         participants: structuredClone(store.state.participants),
         matches: structuredClone(store.state.matches),
@@ -389,7 +395,7 @@ describe('store.apply rollback', () => {
       expect(Object.keys(store.state.matches).sort()).toEqual(Object.keys(before.matches).sort());
       // `store.state` must still be the same object, or cached references go
       // stale -- that is why the rollback is assigned back rather than swapped.
-      expect(store.state).toBe(store.state);
+      expect(store.state).toBe(stateObject);
     } finally {
       await dispose();
     }
@@ -457,20 +463,29 @@ describe('store.apply rollback', () => {
    * `apply()` runs on every score tap, and cloning a log that grows to
    * `MAX_EVENTS` for the whole event made the cost climb with the tournament.
    *
-   * This asserts the *shape* rather than a wall-clock number, because a timing
-   * assertion on a shared CI machine is a flaky test that gets deleted. What is
-   * actually guarded is that `apply` does not deep-copy the event log: a full
-   * clone of a state this size is several times slower than the fast path, so
-   * the ratio below fails loudly if the fast path ever goes away.
+   * The invariant is asserted *behaviourally*, not by timing: `structuredClone`
+   * reads every own enumerable property of everything it reaches, so an event
+   * carrying a counting getter records exactly how many times the log was
+   * copied. A deep clone is a deterministic, non-zero count -- no wall-clock
+   * threshold, so nothing here can flake on a loaded CI runner.
    */
   it('does not deep-copy the event log on every command', async () => {
     const { store, dispose } = await createTestStore('rollback-cost');
     try {
       createQuickTournament(store, { participants: 8 });
-      // Fill the log to a realistic late-event size.
-      const filler = Object.values(store.state.participants)[0];
-      expect(filler).toBeDefined();
-      if (!filler) return;
+      const ctx = adminCtx(store);
+
+      let reads = 0;
+      const probe = { seq: -1, ts: 0, type: 'SYSTEM', fieldId: null, matchId: null, actor: 'test' };
+      Object.defineProperty(probe, 'message', {
+        enumerable: true,
+        configurable: true,
+        get() {
+          reads += 1;
+          return 'probe';
+        },
+      });
+      // A realistic late-event log, so the guard is not passing on a tiny state.
       for (let i = 0; i < 40; i += 1) {
         store.state.events.push({
           seq: store.state.seq + 1 + i,
@@ -482,33 +497,39 @@ describe('store.apply rollback', () => {
           message: `padding event ${i}`,
         });
       }
-      const eventCount = store.state.events.length;
-      expect(eventCount).toBeGreaterThan(40);
+      store.state.events.push(probe as (typeof store.state.events)[number]);
+      expect(store.state.events.length).toBeGreaterThan(40);
 
-      const time = (label: 'fast' | 'full'): number => {
-        const start = performance.now();
-        for (let i = 0; i < 60; i += 1) {
-          if (label === 'fast') {
-            const { events, ...rest } = store.state;
-            structuredClone(rest);
-            void events;
-          } else {
-            structuredClone(store.state);
+      // The success path.
+      run(store, ctx, (_state, _c, mut) => {
+        mut.events.push({ type: 'SYSTEM', message: 'one' });
+      });
+      expect(reads, 'apply() must not clone the event log').toBe(0);
+
+      // And the rollback path, which is the one that actually builds a pre-image.
+      const [participant] = Object.values(store.state.participants);
+      expect(participant).toBeDefined();
+      expect(() =>
+        run(store, ctx, (state, _c, mut) => {
+          if (participant) {
+            const live = state.participants[participant.id];
+            if (live) {
+              live.name = 'SCRIBBLED';
+              mut.participants.add(participant.id);
+            }
           }
-        }
-        return performance.now() - start;
-      };
+          if (!state.fields['999']) throw new Error('FIELD_NOT_FOUND');
+        }),
+      ).toThrow();
+      expect(reads, 'the rollback pre-image must share the event log by reference').toBe(0);
 
-      // Warm up so neither path pays a first-call cost the other does not.
-      time('full');
-      time('fast');
-      const fast = time('fast');
-      const full = time('full');
-
-      // The log is a meaningful share of the state here, so skipping it has to
-      // show. The factor is deliberately modest to stay stable on a slow host.
-      expect(full).toBeGreaterThan(0);
-      expect(fast).toBeLessThan(full);
+      // The share has to be a real one: the log the store hands out is the same
+      // array the engine appended to, not a copy made once and cached.
+      const before = store.state.events.length;
+      run(store, ctx, (_state, _c, mut) => {
+        mut.events.push({ type: 'SYSTEM', message: 'two' });
+      });
+      expect(store.state.events.length).toBe(before + 1);
     } finally {
       await dispose();
     }
@@ -541,6 +562,116 @@ describe('store.apply rollback', () => {
 /* ------------------------------------------------------------------ */
 /* 5. No HTTP rate limiting at all                                     */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* 6. A cross-site defence anchored on the Host header                 */
+/* ------------------------------------------------------------------ */
+
+describe('host header anchoring', () => {
+  /**
+   * The defence used to compare `Origin` against the `Host` header, which looks
+   * like an origin check but is not one: under DNS rebinding an attacker's page
+   * is served from its own origin while resolving to this machine, so it sends
+   * `Host: attacker.example` *and* `Origin: http://attacker.example`. The two
+   * agree perfectly, the request is not flagged, and loopback means admin -- so
+   * `/api/restore`, `/api/backup` and `/api/access/rotate` were reachable
+   * unauthenticated. The `Host` has to be validated against a list the server
+   * controls instead.
+   *
+   * These use `node:http` rather than `fetch`, because undici replaces the
+   * `Host` header with its own and a test written against `fetch` would then be
+   * asserting nothing about the header it claims to be testing.
+   */
+  function rawPost(port: number, headers: Record<string, string>): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const request = http.request(
+        { host: '127.0.0.1', port, path: '/api/backup', method: 'POST', headers },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve(response.statusCode ?? 0));
+        },
+      );
+      request.on('error', reject);
+      request.end('{}');
+    });
+  }
+
+  it('refuses a mutating request whose Host claims a name this server does not answer on', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'tsb-rebind-'));
+    const server = await startServer({ dataDir, port: 0, quiet: true, autoPort: false });
+    try {
+      // Perfectly self-consistent -- which is exactly what made this pass.
+      const status = await rawPost(server.port, {
+        Host: 'attacker.example',
+        Origin: 'http://attacker.example',
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/json',
+      });
+      expect(status).toBe(403);
+    } finally {
+      await server.close();
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a matching Origin on the wrong port', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'tsb-rebind-port-'));
+    const server = await startServer({ dataDir, port: 0, quiet: true, autoPort: false });
+    try {
+      const status = await rawPost(server.port, {
+        Host: '127.0.0.1:1',
+        Origin: 'http://127.0.0.1:1',
+        'Sec-Fetch-Site': 'same-origin',
+        'Content-Type': 'application/json',
+      });
+      expect(status).toBe(403);
+    } finally {
+      await server.close();
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('still accepts loopback, which is how the host PC administers itself', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'tsb-rebind-ok-'));
+    const server = await startServer({ dataDir, port: 0, quiet: true, autoPort: false });
+    try {
+      for (const host of ['127.0.0.1', 'localhost']) {
+        const status = await rawPost(server.port, {
+          Host: `${host}:${server.port}`,
+          Origin: `http://${host}:${server.port}`,
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/json',
+        });
+        expect(status, host).not.toBe(403);
+      }
+      // And with no Origin at all, which is what scripted administration and
+      // the test suite send.
+      expect(await rawPost(server.port, { 'Content-Type': 'application/json' })).not.toBe(403);
+    } finally {
+      await server.close();
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a cross-site fetch a browser labels as such', async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'tsb-rebind-fetch-'));
+    const server = await startServer({ dataDir, port: 0, quiet: true, autoPort: false });
+    try {
+      // Even on an allowlisted Host: `Sec-Fetch-Site` is definitive and runs
+      // first, so a labelled cross-site request never reaches the Host check.
+      const status = await rawPost(server.port, {
+        Host: `127.0.0.1:${server.port}`,
+        Origin: 'http://elsewhere.example',
+        'Sec-Fetch-Site': 'cross-site',
+        'Content-Type': 'application/json',
+      });
+      expect(status).toBe(403);
+    } finally {
+      await server.close();
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('http rate limiting', () => {
   it('refuses a flood and says when to come back', () => {
@@ -687,7 +818,7 @@ describe('http rate limiting', () => {
     }
   });
 
-  it('refuses an oversized body before parsing it', async () => {
+  it('never serves or 500s on a hostile body', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'tsb-ratelimit-body-'));
     const server = await startServer({ dataDir, port: 0, quiet: true, autoPort: false });
     try {
@@ -696,10 +827,13 @@ describe('http rate limiting', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app: 'tournament-scoreboard', state: {}, padding: 'x'.repeat(2000) }),
       });
-      // Loopback is admin, so this is about the limiter being mounted first:
-      // the request is refused or validated, never served as a 500 from a
-      // parser that ran against a flooded bucket.
-      expect([400, 413, 429]).toContain(response.status);
+      // Loopback is admin, so this is about the limiter and the body parser being
+      // mounted in front of the handler: the request must be refused or
+      // validated. Serving it (200) or dying in a parser (500) both mean a
+      // request reached code that should never have seen it.
+      expect(response.status).not.toBe(200);
+      expect(response.status).not.toBe(500);
+      expect(response.status).toBeGreaterThanOrEqual(400);
       await response.arrayBuffer();
     } finally {
       await server.close();

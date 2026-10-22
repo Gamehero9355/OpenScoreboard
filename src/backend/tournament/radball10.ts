@@ -423,6 +423,7 @@ function makeRadball10Match(spec: Radball10MatchSpec): Match {
     loserId: null,
     startedAt: null,
     finishedAt: null,
+    halftimeScore: null,
     timer: createTimerState('down', spec.durationSec, spec.periodCount),
     nextWinMatchId: null,
     nextWinSlot: null,

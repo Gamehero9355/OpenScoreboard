@@ -27,6 +27,7 @@ function timer(over: Partial<TimerState> = {}): TimerState {
     running: false,
     anchorAt: null,
     expired: false,
+    breakEndsAt: null,
     ...over,
   };
 }

@@ -5,8 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { PROTOCOL_VERSION, type ClientMessage, type Delta, type ServerMessage } from '../src/shared/types';
 import { startServer, type RunningServer } from '../src/backend/index';
-import { helloMessage } from '../src/shared/protocol';
-import { homeFieldOf } from '../src/shared/matchUtils';
+import { homeFieldOf, periodLeftSec } from '../src/shared/matchUtils';
 
 let server: RunningServer;
 let dataDir: string;
@@ -220,8 +219,13 @@ describe('http api', () => {
     // The folder path comes back so a host who cannot find it is told where it is.
     expect(typeof index.dir).toBe('string');
 
-    // A crest is readable by a spectator: it is drawn on the boards.
+    // A crest is readable by a spectator: it is drawn on the boards. The
+    // repository ships files in `logos/`, so this path is required rather than
+    // skipped -- a conditional branch here would quietly stop testing anything
+    // the day the folder is renamed or emptied.
+    expect(index.files.length).toBeGreaterThan(0);
     const first = index.files[0];
+    expect(first).toBeDefined();
     if (first) {
       const image = await fetch(`${baseUrl}/logos/${encodeURIComponent(first)}`);
       expect(image.status).toBe(200);
@@ -255,8 +259,11 @@ describe('http api', () => {
     expect(fieldLinks).toHaveLength(2);
     expect(fieldLinks.every((link) => Boolean(link.token))).toBe(true);
     const hostLink = body.links.find((link) => link.purpose === 'host');
-    expect(hostLink?.token).toBe(server.store.adapter ? hostLink?.token : hostLink?.token);
+    // The host link is the one an operator opens the wizard with, so it must
+    // carry a control token and must not be one of the read-only links.
+    expect(hostLink).toBeDefined();
     expect(hostLink?.token).toBeTruthy();
+    expect(typeof hostLink?.token).toBe('string');
   });
 
   it('blocks host-only endpoints for a read-only caller', async () => {
@@ -506,6 +513,61 @@ describe('websocket api', () => {
     await spectator.close();
   }, 20000);
 
+  it('ends the first half over the wire without ending the match', async () => {
+    const host = await connect({ label: 'Host PC' });
+    await host.command('tournament.create', {
+      name: 'Break Cup',
+      participants: ['Ana', 'Ben', 'Cleo', 'Dara'],
+      format: 'single-elimination',
+    });
+    await host.command('match.autoAssign', {});
+    const matchId = server.store.state.fields['1'].matchId as string;
+    expect(matchId).toBeTruthy();
+    expect(server.store.state.matches[matchId].timer.periodCount).toBe(2);
+
+    const started = await host.command('match.start', { matchId });
+    expect(started.ok).toBe(true);
+    const scored = await host.command('match.score', { matchId, side: 'A', delta: 2 });
+    expect(scored.ok).toBe(true);
+
+    // The break: the clock stops and the match waits for the second half.
+    const atBreak = await host.command('match.endHalf', { matchId });
+    expect(atBreak.ok).toBe(true);
+    const halted = server.store.state.matches[matchId];
+    expect(halted.state).toBe('HALFTIME');
+    expect(halted.timer.running).toBe(false);
+    expect(halted.scoreA).toBe(2);
+    expect(halted.winnerId).toBeNull();
+    // The wall reads zero at the break, the same as an automatic halftime.
+    expect(periodLeftSec(halted.timer, Date.now())).toBe(0);
+
+    // It is not over: the match is still on the field and can be played out.
+    expect(server.store.state.fields['1'].matchId).toBe(matchId);
+    const resumed = await host.command('match.startSecondHalf', { matchId });
+    expect(resumed.ok).toBe(true);
+    expect(server.store.state.matches[matchId].state).toBe('RUNNING');
+    expect(server.store.state.matches[matchId].timer.period).toBe(2);
+
+    // A second half is the last period: there is no half left to end.
+    const refused = await host.command('match.endHalf', { matchId });
+    expect(refused.ok).toBe(false);
+    expect(refused.code).toBe('INVALID_STATE');
+
+    // A spectator may not call the break.
+    const spectator = await connect({ readOnly: true, label: 'Phone' });
+    const notAllowed = await spectator.command('match.endHalf', { matchId });
+    expect(notAllowed.ok).toBe(false);
+
+    // The match is still a normal match: it can be finished, and the field is
+    // free again for the tests that follow.
+    const finished = await host.command('match.finish', { matchId, winner: 'A' });
+    expect(finished.ok).toBe(true);
+    expect(server.store.state.fields['1'].matchId).toBeNull();
+
+    await host.close();
+    await spectator.close();
+  }, 20000);
+
   it('applies a repeated request id only once', async () => {
     const host = await connect({ label: 'Host PC' });
     await host.command('match.autoAssign', {});
@@ -562,9 +624,19 @@ describe('websocket api', () => {
     expect(adminAction.ok).toBe(false);
     expect(adminAction.code).toBe('FORBIDDEN');
 
-    // A second phone on the same control link must be told the field is taken.
+    // A second phone on the same control link is told the field is already
+    // controlled. The claim is advisory by design -- both phones hold the same
+    // field token and `assertOperatorField` only checks that the token matches
+    // the field -- so what must be guaranteed is that the newcomer is *told*,
+    // and that the holder in the state is not silently overwritten.
+    const heldBy = server.store.state.fields['1'].controlledBy;
+    expect(heldBy).toBeTruthy();
     const secondOperator = await connect({ token: fieldOneToken, label: 'Phone 2' });
-    // The first holder is released when its socket closes, so re-claim first.
+    const warning = await secondOperator.waitFor(
+      (message) => message.t === 'notify' && /controlled by/i.test(message.message),
+    );
+    expect(warning.t === 'notify' && warning.message).toContain(String(heldBy));
+    expect(server.store.state.fields['1'].controlledBy).toBe(heldBy);
     await secondOperator.close();
     await host.close();
     await operator.close();
@@ -725,9 +797,6 @@ describe('websocket api', () => {
     await host.close();
     await spectator.close();
   }, 20000);
-});
-
-void helloMessage;
 
   it('creates a manual schedule and lets the host keep editing it', async () => {
     const host = await connect({ label: 'Host PC' });
@@ -810,4 +879,5 @@ void helloMessage;
     expect(handRenamed.code).toBe('BAD_REQUEST');
 
     await host.close();
-  });
+  }, 20000);
+});

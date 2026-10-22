@@ -7,7 +7,7 @@
  * not a hundred.
  */
 import { fieldDisplayName, fieldIds, isRealMatch, nameOf } from '../../shared/matchUtils';
-import { displayMessageFor, displayScreenFor } from '../../shared/types';
+import { displayMessageFor, displayScreenFor, screenAtBreak } from '../../shared/types';
 import { useFullscreen, useLive, useLocalStorage, useWakeLock } from '../lib/hooks';
 import { asTranslate, useI18n } from '../lib/useI18n';
 import { cx } from '../lib/util';
@@ -39,7 +39,29 @@ export function DisplayPage({ view }: { view: string }) {
   const target = view === 'both' ? 'both' : view;
   const screen = state?.settings ? displayScreenFor(state.settings, target) : 'scores';
   const screenMessage = state?.settings ? displayMessageFor(state.settings, target) : null;
-  const boardVisible = screen === 'scores';
+
+  /**
+   * The break puts the pause notice on the field's own screen.
+   *
+   * A match in two halves stops at its break -- by the clock running out, or
+   * by the host calling it -- and the hall has to be told that the game
+   * stopped, so the field's screen says PAUSE while the break lasts. Only
+   * while it is showing the score board, though: a screen the host put there
+   * on purpose (the wall clock, the crest, the tables) keeps that picture.
+   *
+   * The board comes back by itself when the second half starts, because the
+   * screen was never changed -- only what is drawn on it.
+   *
+   * The combined display shows every field at once and therefore never takes
+   * one field's break onto the whole wall: the other field may still be
+   * playing.
+   */
+  const fieldMatch =
+    view === 'both' || !state
+      ? null
+      : (state.fields[view]?.matchId ? (state.matches[state.fields[view].matchId] ?? null) : null);
+  const shownScreen = view === 'both' ? screen : screenAtBreak(screen, fieldMatch?.state);
+  const boardVisible = shownScreen === 'scores';
 
   return (
     <div
@@ -53,7 +75,14 @@ export function DisplayPage({ view }: { view: string }) {
       {!boardVisible ? (
         <div className="disp__stage">
           {state ? (
-            <DisplayScreenView screen={screen} state={state} message={screenMessage} />
+            <DisplayScreenView
+              screen={shownScreen}
+              state={state}
+              message={screenMessage}
+              // The pause screen prints the table of the game that is stopping:
+              // this display's own field, or every field on the combined one.
+              fieldIds={fields}
+            />
           ) : (
             <div className="disp-idle">{t('disp.waiting')}</div>
           )}

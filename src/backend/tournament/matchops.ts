@@ -13,11 +13,13 @@ import { resetScores } from './scoring';
 import {
   type Ctx,
   type Mutation,
+  clearBreak,
   isOnField,
   notify,
   participantName,
   pushEvent,
   resetTimer,
+  startBreak,
   startTimer,
   stopTimer,
   touchMatch,
@@ -423,6 +425,8 @@ export function startSecondHalf(
   match.timer.period = 2;
   match.timer.periodStartElapsedMs = match.timer.elapsedMs;
   match.timer.expired = false;
+  // The pause is over: nothing is counting down any more.
+  clearBreak(match.timer);
   match.state = 'RUNNING';
   startTimer(match.timer, ctx.now);
   touchMatch(mut, match.id);
@@ -430,6 +434,80 @@ export function startSecondHalf(
     matchId: match.id,
     fieldId: match.fieldId,
   });
+}
+
+/**
+ * Put a match at its break.
+ *
+ * Both ways into the break end here: the clock running out (the store's timer
+ * sweep) and the host calling it. They used to set the same things in two
+ * places, which is how one of them ended up with a clock that still ran while
+ * the other did not.
+ *
+ * The clock stops at the end of the period, exactly as it does when the clock
+ * runs out on its own: the half is over, so the wall reads zero and not the
+ * time that was left on it. A board that still showed 06:50 while the card
+ * offered to start the second half would read as a clock that was somehow
+ * still running. The second half still gets its full length, because
+ * `startSecondHalf` reads the period length, not the time the first half
+ * happened to take.
+ */
+export function enterHalftime(
+  state: TournamentState,
+  match: Match,
+  mut: Mutation,
+  now: number,
+): void {
+  stopTimer(match.timer, now);
+  match.timer.elapsedMs = match.timer.periodStartElapsedMs + match.timer.periodDurationSec * 1000;
+  // The break gets a countdown of its own, so the hall can see how long the
+  // pause has been running. It stops at zero; the second half is still the
+  // host's call.
+  startBreak(match.timer, now, state.settings.breakDurationSec);
+  match.state = 'HALFTIME';
+  // The score the teams had when the half ended, for the result sheet: a game
+  // is reported as its two halves as well as its final whistle.
+  match.halftimeScore = { a: match.scoreA, b: match.scoreB };
+  touchMatch(mut, match.id);
+  pushEvent(mut, 'MATCH_HALFTIME', { key: 'event.matchHalftime', params: { round: match.roundName } }, {
+    matchId: match.id,
+    fieldId: match.fieldId,
+  });
+}
+
+/**
+ * End the running half.
+ *
+ * The clock reaching the end of a period does this by itself -- the store's
+ * timer sweep stops the clock and puts the match at halftime -- but a hall
+ * decides when the break comes. The coach waves the teams over early, the
+ * second half has to start before the first one has run its full length, or
+ * the hall simply wants the break now. This stops the clock and puts the
+ * match at halftime, so the teams change over and the host starts the second
+ * half with one more press.
+ *
+ * Only the first half can be ended this way. The second half is the last
+ * period of the match, and ending it is ending the match -- which is what
+ * "End match" does, with the winner still to be decided.
+ */
+export function endHalf(state: TournamentState, matchId: string, ctx: Ctx, mut: Mutation): void {
+  const match = requirePlayable(state, matchId);
+  if (match.timer.periodCount !== 2) {
+    throw new EngineError('INVALID_STATE', 'This match is played in one half, so there is no break to go to.');
+  }
+  if (match.state === 'HALFTIME') {
+    throw new EngineError('INVALID_STATE', 'This match is already at halftime.');
+  }
+  if (match.state === 'FINISHED' || match.state === 'CANCELLED') {
+    throw new EngineError('INVALID_STATE', 'This match is already over.');
+  }
+  if (match.timer.period !== 1) {
+    throw new EngineError('INVALID_STATE', 'This match is already in the second half.');
+  }
+  if (match.state !== 'RUNNING' && match.state !== 'PAUSED') {
+    throw new EngineError('INVALID_STATE', 'Start the match before ending a half.');
+  }
+  enterHalftime(state, match, mut, ctx.now);
 }
 
 export function cancelMatch(

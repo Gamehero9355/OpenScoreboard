@@ -200,13 +200,46 @@ anything is created; to move a team between groups, move its line to the other f
 ## 6. Running the event: two fields at once
 
 * **Host dashboard** — one tab per playing field with score buttons, clock, start/pause,
-  undo/redo, reset and end match. Each tab shows the live score at a glance. Under the tab
+  undo/redo, reset, end first half and end match. Each tab shows the live score at a glance.
+  Under the tab
   sits **that field's queue and nothing else**: its own matches first (the matches whose
   players registered on it), then — under the *Shared · either field* heading — the pairings
   that mix both fields, such as the final and the bronze match, which either field may play.
   Another field's matches are never listed there, so you always know which queue you are
   looking at. Use **Swap** to exchange the matches of two fields and **Auto-assign next** to
   give every free field its next own match.
+* **Ending the first half early** — a match in two halves reaches its break by itself when
+  the clock runs out, but a hall decides when the break comes: the coach waves the teams
+  over, or the second half has to start before the first one has run its full length.
+  **End 1st half** stops the clock at the end of the half and sends the match to the break —
+  the wall reads zero, exactly as it does when the clock runs out on its own. The score is
+  kept, the match is not over, and **Start second half** puts the second half on with a full
+  clock of its own. The button only exists while the first half is under way — a match in one
+  half has no break to go to, and the second half is the last period, so ending it is ending
+  the match. It is on the host dashboard and on the operator's phone.
+* **A field's screen says PAUSE while its match is at the break.** When the first
+  half ends — by the clock running out or by *End 1st half* — the field's own
+  screen (`/display/1`) puts the pause notice up, so the hall knows the game has
+  stopped; the score board comes back by itself when the second half starts. The
+  break only takes over a screen that is showing the score board: a screen the
+  host put on the wall clock, the club crest or the tables keeps that picture.
+  The combined display (`/display`) shows every field at once and therefore
+  never takes one field's break onto the whole wall — the other field may still
+  be playing. The host's console says the same thing at the same moment: the
+  lit tile and the "now shows" line name the picture that is on the wall, so the
+  switch is visible from the desk without looking at the projector.
+* **The break counts itself down.** When the first half ends, the pause starts a
+  countdown — two minutes by default, and the length is a setting
+  (*Settings → Scoring → Clock*), so a hall can make it one minute or five. It
+  runs on the wall under the PAUSE headline, on the host's field card and on the
+  operator's phone. It **stops at zero** and waits there: the second half is
+  still started by the host, because the teams have to be back on their feet
+  first. To end the pause early, press *Start second half* — that is what the
+  button does.
+* **The results tab** (`/results`) lists every game of the competition with its
+  score. A game that reached its break also shows the score it stood at then,
+  beside the final one — `5 : 3 (2 : 1)`, the bracket being the half-time
+  score.
 * **Which match belongs to which field** has two answers, and you never have to configure them.
   If you entered a roster per field (Setup → step 4 has one box per field), each field owns the
   matches played by *its* players. If a tournament has no field rosters — a quick draw or an
@@ -215,7 +248,8 @@ anything is created; to move a team between groups, move its line to the other f
   final, the bronze match) shows up in both queues under *Shared · either field* and may be played
   on whichever field is free.
 * **Field operator** — open `/field/1` (or the field-1 QR code) on the phone of the person
-  running that field. Big touch targets, a big clock, `+1/+2/+3`, undo, and *End match*.
+  running that field. Big touch targets, a big clock, `+1/+2/+3`, undo, *End 1st half* and
+  *End match*.
   The first device to open a field claims it; a second device is told
   *"Field 1 is currently controlled"* and can take over deliberately.
 * **Any screen** can be a display: `/display` for both fields, `/display/1`, `/display/2`,

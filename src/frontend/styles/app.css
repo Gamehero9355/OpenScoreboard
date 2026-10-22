@@ -213,6 +213,15 @@
   padding-bottom: var(--space-2);
 }
 
+/* The rail scrolls; it never squeezes.
+   A flex column whose children may shrink compresses them to fit its own
+   height instead of scrolling, and a panel hides its overflow -- so a panel
+   that shrank to fit was a panel with its bottom rows cut off, with nothing
+   to say so. A panel the host can scroll to is a panel they can read whole. */
+.shell__side > * {
+  flex-shrink: 0;
+}
+
 /* A panel that takes the space left over in a flex column */
 .panel--fill {
   flex: 1 1 auto;
@@ -1353,6 +1362,152 @@
   text-overflow: ellipsis;
 }
 
+/* --- display console: what each field's screen shows ---------------------- */
+/* The host used to get a native dropdown here, which hid all six screens
+   behind one click and reduced them to six names. The console puts the
+   pictures on the table: a tile per screen shows what that screen looks like,
+   and the line between the two zones names what is up there right now.
+   Two questions, two zones -- and they must never look alike. The field is
+   a row of round pills, the screen a grid of picture tiles; before, both were
+   squares in one three-column grid, so the panel read as a box of nine
+   buttons and nobody could tell which row changed the field and which
+   changed the picture. */
+
+.display-console {
+  gap: var(--space-4);
+}
+
+.display-zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.display-zone__label {
+  font-size: var(--step--1);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The field: a row of pills. Round, one line of text, no picture -- a
+   different shape from the screen tiles below, at a glance and from across
+   the desk. */
+.display-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.display-field {
+  min-height: var(--touch);
+  max-width: 100%;
+  padding: 4px var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease);
+}
+.display-field:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.display-field[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface-2));
+  border-color: var(--brand);
+  color: var(--text);
+}
+.display-field:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* What is on the wall right now, said in words: the line that answers
+   "what is up there?" before the host changes anything. */
+.display-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  line-height: 1.4;
+}
+.display-status strong {
+  color: var(--text);
+  font-weight: 750;
+}
+.display-status__line {
+  display: block;
+}
+.display-status__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.display-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.display-grid--sheet {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.display-tile {
+  min-height: var(--touch);
+  padding: 8px var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease),
+    box-shadow 120ms var(--ease);
+}
+.display-tile:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+.display-tile[aria-pressed='true'] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.display-tile:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+.display-tile__label {
+  font-size: var(--step--1);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+.screen-preview {
+  display: block;
+}
+
 /* --- modal --------------------------------------------------------------------- */
 
 .modal-backdrop {
@@ -1635,6 +1790,12 @@
 .qr--compact img {
   max-width: 148px;
 }
+/* A compact code is a card in a wide tile, so the card hugs the code instead of
+   stretching a white frame across the tile and leaving the code in a well. */
+.qr--compact {
+  width: fit-content;
+  margin-inline: auto;
+}
 
 .url {
   width: 100%;
@@ -1653,9 +1814,16 @@
 }
 .url__text {
   /* A LAN address is the thing the host reads out loud, so it wraps and shows
-     in full instead of trailing off into an ellipsis. */
+     in full instead of trailing off into an ellipsis.
+
+     The breaks it takes are the ones the URL itself offers: a zero-width space
+     after the scheme, after each path segment and before the fragment, so a
+     long address folds at "/host" rather than in the middle of a hostname or
+     a token. `break-word` and not `anywhere`: the address is broken where a
+     person would break it, and only in the last resort inside a piece that
+     still does not fit. */
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-overflow: clip;
   min-width: 0;
   flex: 1 1 auto;
@@ -1672,15 +1840,22 @@
 }
 
 /* --- QR gallery: never crush tiles into each other ------------------------ */
+
+/*
+ * The grid is as wide as the tiles need, not as many as fit.
+ *
+ * A tile carries a QR code *and* the address behind it, and the address is
+ * only readable if the tile is wide enough to hold it: crushed into a third of
+ * a narrow rail, one URL folded over five or nine lines and the tile grew
+ * taller than the screen it was on. So a tile asks for twenty rem, the grid
+ * gives it as many as fit, and a narrow rail gets one roomy column instead of
+ * two crushed ones.
+ */
 .qr-grid {
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
   min-width: 0;
-}
-/* Narrow sidebars get two roomy columns instead of three crushed ones. */
-.shell__side .qr-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 /* Every tile reserves the same head and description height, so all QR codes in
    the grid start on the same line even when one tile carries a "Host only"
@@ -1700,6 +1875,23 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/*
+ * The address in a tile gets the tile's whole width and the hint sits under it.
+ *
+ * Side by side, the hint took a fifth of the row and the address was left with
+ * barely more than a third of it -- which is why a link with a token in it
+ * folded over three lines and the rest over two. Underneath, the address has
+ * the room to be one or two lines, which is the whole point of printing it.
+ */
+.qr-tile .url {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.qr-tile .url > .tiny {
+  text-align: right;
+}
 .qr-tile__head {
   min-width: 0;
   flex-wrap: nowrap;
@@ -1715,12 +1907,6 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
-}
-@media (max-width: 520px) {
-  .qr-grid,
-  .shell__side .qr-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .choice {
@@ -1990,6 +2176,16 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+}
+
+/* The score the teams had when the half ended, beside the final one.
+   A result is reported as its two halves as well as its final whistle, so
+   "5 : 3 (2 : 1)" says both at once -- the bracket is the half-time score,
+   and the dimmer weight keeps the final one the headline. */
+.rb-games__half,
+.results__half {
+  font-weight: 650;
+  color: var(--text-faint);
 }
 
 /* Decision match card: deliberately louder than a fixture row. */
@@ -3129,41 +3325,72 @@
 }
 
 /*
- * The standings inside a field card: five rows, four columns.
+ * The standings inside a field card: five rows, a full-width league table.
  *
- * `table-layout: fixed`, with the column widths declared on the header row. On
- * auto layout the two numeric columns took 204px between them -- more than the
- * squad name was given -- and neither carried a label, so the only thing a
- * spectator could read off them was two unlabelled zeros. Fixed layout makes the
- * name column take everything that is left, which is the one column that has to
- * be readable from the back of a hall.
+ * A card in this panel is as wide as the panel, and five rows of names stretched
+ * across it left a void the eye read as a mistake: the two figures sat in the
+ * far corner and the strip above them named only those two, so the table looked
+ * like a layout that had given up halfway across.
+ *
+ * So the width carries the group's own figures instead, and the table is the
+ * same table the Standings page shows -- the same columns, the same short
+ * labels, the same tooltips -- at the size a hall reads it. One table, two
+ * sizes, rather than two tables that drift apart.
+ *
+ * `table-layout: fixed`, with the column widths declared on the header row as
+ * percentages rather than pixels: the figures hold an even band of their own on
+ * the right, the squad name takes what is left, and the whole thing scales with
+ * the card instead of overflowing it.
  *
  * Every `th` is restyled: `.table th` is a sticky surface-2 header bar built for
  * a full-width scorebook sheet, and none of that belongs inside a five-row card.
  */
+
+/* The table keeps the width its column labels need and the card scrolls it,
+   the way the official table on the Standings page does. Squeezed into a
+   phone's width instead, the labels that name the figures would be clipped and
+   the table would say nothing. */
+.rbt__standing-wrap {
+  overflow-x: auto;
+}
+
 .rbt__standing-table {
   table-layout: fixed;
-  font-size: 0.82rem;
+  font-size: var(--step-0);
+  min-width: 32rem;
 }
 
-.rbt__standing-table thead th:nth-child(1) {
-  width: 2.6rem;
+/* The position column: the group's published place, A1..A5. Centred, so it
+   reads as an index of its own rather than as a second name. */
+.rbt__standing-table thead th.rbt__col-pos {
+  width: 8%;
+  text-align: center;
+  padding-left: 0;
+  padding-right: 0;
 }
 
-.rbt__standing-table thead th:nth-child(2) {
-  width: auto;
+/* The squad. It takes the slack, because a name is the one thing in a table
+   that cannot be abbreviated. */
+.rbt__standing-table thead th.rbt__col-squad {
+  width: 44%;
 }
 
+/* The figures: six columns of one width, so the band they form is even and the
+   eye can run straight down it. */
 .rbt__standing-table thead th:nth-child(3),
-.rbt__standing-table thead th:nth-child(4) {
-  width: 3rem;
+.rbt__standing-table thead th:nth-child(4),
+.rbt__standing-table thead th:nth-child(5),
+.rbt__standing-table thead th:nth-child(6),
+.rbt__standing-table thead th:nth-child(7),
+.rbt__standing-table thead th:nth-child(8) {
+  width: 8%;
 }
 
 .rbt__standing-table th {
   position: static;
   background: none;
-  padding: 0;
-  border-bottom: 0;
+  padding: 0 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--line);
   /* The app's label size. There is no --step--2, so a "smaller" step here would
      be a new size invented for one component rather than a rung on the ramp. */
   font-size: 0.6875rem;
@@ -3174,16 +3401,23 @@
   white-space: nowrap;
 }
 
-/* The header row is the only thing naming the two figures. It is a label strip,
-   not a bar: a rule under it would double the border the first body row already
-   draws. */
-.rbt__standing-table thead th {
-  padding-bottom: 0.4rem;
+/* The header strip is a label strip, not a bar: the rule under it is the one
+   the first body row would have drawn anyway. The labels sit over the figures
+   they name, and the two identity columns are named at the left. */
+.rbt__standing-table thead th.rbt__num {
+  text-align: right;
 }
 
 .rbt__standing-table td {
-  padding-top: 0.2rem;
-  padding-bottom: 0.2rem;
+  padding: 0.25rem 0.5rem;
+  vertical-align: middle;
+}
+
+/* The position cell is centred, so the column reads as an index of its own
+   rather than as a second name. */
+.rbt__standing-table td.rbt__pos {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* The squad is the row's own header, so it reads as row content: the label
@@ -3198,9 +3432,8 @@
   text-transform: none;
   color: var(--text);
   text-align: left;
-  padding-left: var(--space-2);
   /* The same rule the `td`s draw. Without it the row border stops at the name and
-     restarts under the two figures, which reads as a stray fragment rather than
+     restarts under the figures, which reads as a stray fragment rather than
      as one row. */
   border-bottom: 1px solid var(--line);
 }
@@ -3210,43 +3443,59 @@
   text-align: right;
 }
 
-/* The A1..A5 label. Solid, not a tint: it is the single thing a volunteer looks
-   for when they are told "Group A, second place, step on". Its background and
-   border live on the cell, which is why the column above is sized rather than
-   left to auto layout: on a `width: 100%` table the cell absorbed 128px of the
-   row and painted a slab across a two-character label.
+/* The figures are one step quieter than the name: they are read down a column,
+   not across a row. */
+.rbt__standing-table td.rbt__num {
+  color: var(--text-dim);
+  font-weight: 600;
+}
 
-   The ink is `--text`, not `--brand-ink`. `--brand-ink` is white ink meant to sit
-   on the brand colour, and it does not change between themes -- on a light
-   `--surface-3` it measured 1.23:1, i.e. an unreadable tag. */
+/* The points are the figure the group is read for, so they carry the weight the
+   official table gives them -- and no more size than it, so the two tables stay
+   one table at two sizes. */
+.rbt__standing-table td.rbt__pts {
+  color: var(--text);
+  font-weight: 800;
+}
+
+/*
+ * The A1..A5 label. Plain, in the app's measurement face: it is the published
+ * place rather than a seed, and it is what the final-phase ladder names
+ * ("Group A #1"), so it is the one label in the table that has to be read
+ * exactly. It used to be a filled chip, which read as a button and painted a
+ * slab across a two-character label; the table's own column separates it from
+ * the squad beside it without that.
+ */
 .rbt__pos {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-align: center;
-  color: var(--text);
-  background: var(--surface-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 0 0.3rem;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
-/* The two squads that go through: their points figure, in live green.
+/*
+ * The two squads that go through.
  *
  * DESIGN.md's Two-Signal Rule puts "running or leading" on live green, which is
  * exactly what the top two of a group are, and unlike `--brand-ink` the light
  * theme's live green is dark enough to read: the old brand-ink here was white on
  * white, 1:1, so the two figures that decide the final phase were the two you
- * could not see. */
-.rbt__row--semifinalist .rbt__pts {
-  color: var(--live);
-  font-weight: 700;
+ * could not see.
+ *
+ * The mark is on the position and on the points, because the position is what a
+ * volunteer is told and the points are what they check. The row itself is
+ * tinted a hair, so the two are findable in one glance from the back of a hall.
+ */
+.rbt__standing-row--through > * {
+  background: color-mix(in srgb, var(--live) 7%, transparent);
 }
 
-.rbt__pts {
-  font-weight: 700;
+.rbt__standing-row--through td.rbt__pos,
+.rbt__standing-row--through td.rbt__pts {
+  color: var(--live);
 }
 /*
  * The final phase: seven rows of one shape.

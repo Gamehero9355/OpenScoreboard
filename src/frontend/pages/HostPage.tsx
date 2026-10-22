@@ -289,17 +289,13 @@ export function HostPage() {
         </div>
 
         <aside className="shell__side">
-          {/* The field's display, switched from the desk. Exactly one selector,
-              following the open field tab above: on Field 2's tab this
-              switches Field 2's TV, so a tap can never land on the wrong
-              field. */}
+          {/* The field's display, switched from the desk. The console edits
+              the screen of the field the host has open -- the tab at the top of
+              the page already says which one that is -- and offers every field
+              at once as the only other choice. The pictures say what a screen
+              looks like, so a tap cannot land on the wrong picture either. */}
           <Panel title={t('display.title')}>
-            <DisplayScreenPicker
-              key={`display-picker-${activeField}`}
-              target={activeField}
-              compact
-              variant="select"
-            />
+            <DisplayScreenPicker fieldIds={ids} activeField={activeField} />
           </Panel>
 
           <Panel

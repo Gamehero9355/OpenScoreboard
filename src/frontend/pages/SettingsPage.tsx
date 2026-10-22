@@ -631,6 +631,26 @@ function ScoringTab({ settings, patch }: { settings: Settings; patch: Patch }) {
             }}
              hint={t('settings.durationHint')}
           />
+          <DraftText
+             label={t('settings.breakLabel')}
+            value={`${String(Math.floor(settings.breakDurationSec / 60)).padStart(2, '0')}:${String(
+              settings.breakDurationSec % 60,
+            ).padStart(2, '0')}`}
+            onSave={(next) => {
+              const match = /^(\d{1,3}):(\d{2})$/.exec(next.trim());
+              const seconds = match
+                ? Number(match[1]) * 60 + Number(match[2])
+                : /^\d+$/.test(next.trim())
+                  ? Number(next.trim()) * 60
+                  : null;
+              if (seconds === null || seconds < 10) {
+                live.pushToast('error', t('settings.breakInvalid'));
+                return;
+              }
+              void patch({ breakDurationSec: seconds }, t('settings.breakSaved'));
+            }}
+             hint={t('settings.breakHint')}
+          />
           <div className="field-row">
             <span className="label">{t('settings.directionLabel')}</span>
             <Segmented

@@ -307,6 +307,7 @@ function toMatches(tournamentId: string, generated: GeneratedMatch[], settings: 
     loserId: null,
     startedAt: null,
     finishedAt: null,
+    halftimeScore: null,
     timer: createTimerState(settings.timerMode, settings.defaultMatchDurationSec),
     nextWinMatchId: g.nextWinMatchId,
     nextWinSlot: g.nextWinSlot,
@@ -595,6 +596,19 @@ export function setFieldNames(state: TournamentState, names: string[], mut: Muta
         throw new EngineError(
           'FIELD_BUSY',
           `${removed.name} still has a match on it. Clear the field before removing it.`,
+        );
+      }
+      // The other direction of the same relationship. A match that names this
+      // field must also block the removal, or the match keeps a `fieldId` no
+      // state has any more -- which the boards, the print sheet and the results
+      // table all dereference. Both directions are checked because a hand-edited
+      // or partially-written file can disagree with itself, and this is the only
+      // place that gets to say so.
+      const stranded = Object.values(state.matches).find((match) => match.fieldId === id);
+      if (stranded) {
+        throw new EngineError(
+          'FIELD_BUSY',
+          `${removed?.name ?? `Field ${id}`} is still named by a match. Clear the field before removing it.`,
         );
       }
       mut.fields.add(id);

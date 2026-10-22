@@ -7,6 +7,7 @@ import {
   unassignField,
   cancelMatch,
   claimField,
+  endHalf,
   finishMatch,
   getNextAvailableMatch,
   pauseMatch,
@@ -327,6 +328,76 @@ describe('undo and redo', () => {
       'INVALID_STATE',
     );
   });
+
+  it('refuses to undo or redo a finished match instead of stranding its winner', () => {
+    // A finished match has already fed its winner into the bracket and the
+    // standings. Replaying an older score over it would leave the scoreboard
+    // showing one result and the bracket another.
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    run(env.store, ctx, (state, c, mut) => {
+      assignMatchToField(state, matchId, '1', c, mut);
+      startMatch(state, matchId, '1', c, mut);
+    });
+    run(env.store, ctx, (state, c, mut) => {
+      updateScore(state, state.matches[matchId], 'A', 1, c, mut);
+    });
+    run(env.store, ctx, (state, c, mut) => {
+      updateScore(state, state.matches[matchId], 'A', 1, c, mut);
+    });
+    run(env.store, ctx, (state, c, mut) => {
+      finishMatch(state, { matchId, winner: null, force: true }, c, mut);
+    });
+    const finished = env.store.state.matches[matchId];
+    expect(finished.state).toBe('FINISHED');
+    expect(finished.winnerId).not.toBeNull();
+    expect(finished.history.length).toBeGreaterThan(0);
+
+    // `store.apply` rolls the mutation back on throw, so the refusal must leave
+    // the finished result and its winner completely untouched.
+    expectEngineError(
+      () =>
+        run(env.store, ctx, (state, c, mut) => {
+          undoScore(state, state.matches[matchId], c, mut);
+        }),
+      'INVALID_STATE',
+    );
+    expect(env.store.state.matches[matchId]).toMatchObject({
+      state: 'FINISHED',
+      scoreA: 2,
+      winnerId: finished.winnerId,
+    });
+
+    expectEngineError(
+      () =>
+        run(env.store, ctx, (state, c, mut) => {
+          redoScore(state, state.matches[matchId], c, mut);
+        }),
+      'INVALID_STATE',
+    );
+    expect(env.store.state.matches[matchId].scoreA).toBe(2);
+  });
+
+  it('refuses to undo a cancelled match', () => {
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    run(env.store, ctx, (state, c, mut) => {
+      updateScore(state, state.matches[matchId], 'A', 1, c, mut);
+    });
+    run(env.store, ctx, (state, c, mut) => {
+      cancelMatch(state, matchId, c, mut);
+    });
+    expectEngineError(
+      () =>
+        run(env.store, ctx, (state, c, mut) => {
+          undoScore(state, state.matches[matchId], c, mut);
+        }),
+      'INVALID_STATE',
+    );
+    expect(env.store.state.matches[matchId].scoreA).toBe(1);
+  });
 });
 
 describe('match completion and advancement', () => {
@@ -579,6 +650,136 @@ describe('timer', () => {
     expect(timerRemaining(extended, 0)).toBe(317_655);
   });
 
+  it('ends the first half on demand and leaves the match to be played out', () => {
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    run(env.store, ctx, (state, c, mut) => {
+      assignMatchToField(state, matchId, '1', c, mut);
+      startMatch(state, matchId, '1', c, mut);
+      updateScore(state, state.matches[matchId], 'A', 3, c, mut);
+    });
+    const running = env.store.state.matches[matchId];
+    expect(running.state).toBe('RUNNING');
+    expect(running.timer.periodCount).toBe(2);
+    expect(running.timer.period).toBe(1);
+
+    run(env.store, ctx, (state, c, mut) => {
+      endHalf(state, matchId, c, mut);
+    });
+
+    const atBreak = env.store.state.matches[matchId];
+    expect(atBreak.state).toBe('HALFTIME');
+    expect(atBreak.timer.period).toBe(1);
+    expect(atBreak.timer.running).toBe(false);
+    expect(atBreak.timer.anchorAt).toBeNull();
+    // The score survives the break: a half is not a finish.
+    expect(atBreak.scoreA).toBe(3);
+    // The clock reads zero, exactly as it does when the clock runs out on its
+    // own -- the half is over, so the wall must not still show the time that
+    // was left on it.
+    expect(timerRemaining(atBreak.timer, Date.now())).toBe(0);
+
+    // The match goes on: the second half runs with a full clock of its own.
+    run(env.store, ctx, (state, c, mut) => {
+      startSecondHalf(state, matchId, c, mut);
+    });
+    const second = env.store.state.matches[matchId];
+    expect(second.state).toBe('RUNNING');
+    expect(second.timer.period).toBe(2);
+    expect(second.scoreA).toBe(3);
+    expect(timerRemaining(second.timer, second.timer.anchorAt ?? Date.now())).toBe(
+      running.timer.periodDurationSec * 1000,
+    );
+
+    // A half cannot be ended twice, and a match already in the second half has
+    // no half left to end.
+    expectEngineError(
+      () =>
+        run(env.store, ctx, (state, c, mut) => {
+          endHalf(state, matchId, c, mut);
+        }),
+      'INVALID_STATE',
+    );
+  });
+
+  it('starts the break clock when the first half ends and clears it for the second', () => {
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    // The break is as long as the host set it.
+    env.store.state.settings.breakDurationSec = 90;
+    run(env.store, ctx, (state, c, mut) => {
+      assignMatchToField(state, matchId, '1', c, mut);
+      startMatch(state, matchId, '1', c, mut);
+    });
+
+    const before = Date.now();
+    run(env.store, ctx, (state, c, mut) => {
+      endHalf(state, matchId, c, mut);
+    });
+    const atBreak = env.store.state.matches[matchId];
+    expect(atBreak.state).toBe('HALFTIME');
+    expect(atBreak.timer.breakEndsAt).not.toBeNull();
+    expect(atBreak.timer.breakEndsAt ?? 0).toBeGreaterThanOrEqual(before + 90_000);
+    expect(atBreak.timer.breakEndsAt ?? 0).toBeLessThan(before + 95_000);
+
+    // The second half starts: nothing is counting down any more.
+    run(env.store, ctx, (state, c, mut) => {
+      startSecondHalf(state, matchId, c, mut);
+    });
+    expect(env.store.state.matches[matchId].timer.breakEndsAt).toBeNull();
+  });
+
+  it('keeps the score the teams had at the break, for the result sheet', () => {
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    run(env.store, ctx, (state, c, mut) => {
+      assignMatchToField(state, matchId, '1', c, mut);
+      startMatch(state, matchId, '1', c, mut);
+      updateScore(state, state.matches[matchId], 'A', 2, c, mut);
+    });
+    // No break yet: there is no half-time score to report.
+    expect(env.store.state.matches[matchId].halftimeScore).toBeNull();
+
+    run(env.store, ctx, (state, c, mut) => {
+      endHalf(state, matchId, c, mut);
+    });
+    // The score at the break is the score the teams had, not the final one.
+    expect(env.store.state.matches[matchId].halftimeScore).toEqual({ a: 2, b: 0 });
+
+    // A second half adds to the final score and leaves the break's alone.
+    run(env.store, ctx, (state, c, mut) => {
+      startSecondHalf(state, matchId, c, mut);
+      updateScore(state, state.matches[matchId], 'B', 3, c, mut);
+    });
+    const played = env.store.state.matches[matchId];
+    expect(played.scoreA).toBe(2);
+    expect(played.scoreB).toBe(3);
+    expect(played.halftimeScore).toEqual({ a: 2, b: 0 });
+
+    // A reset match has no half behind it any more.
+    run(env.store, ctx, (state, c, mut) => {
+      resetMatch(state, matchId, c, mut);
+    });
+    expect(env.store.state.matches[matchId].halftimeScore).toBeNull();
+  });
+
+  it('refuses to end a half that is not running', () => {
+    createQuickTournament(env.store, { participants: 4 });
+    const ctx = adminCtx(env.store);
+    const matchId = matchOrderFirst(env.store);
+    // Never started.
+    expectEngineError(
+      () =>
+        run(env.store, ctx, (state, c, mut) => {
+          endHalf(state, matchId, c, mut);
+        }),
+      'INVALID_STATE',
+    );
+  });
+
   it('stops at halftime and starts the second half with a fresh clock', () => {
     createQuickTournament(env.store, { participants: 4 });
     const ctx = adminCtx(env.store);
@@ -597,6 +798,9 @@ describe('timer', () => {
     expect(halftime.timer.running).toBe(false);
     expect(halftime.timer.elapsedMs).toBe(firstHalfMs);
     expect(timerRemaining(halftime.timer, firstBoundary)).toBe(0);
+    // The break counts itself down, so the hall can see how long it has run.
+    expect(halftime.timer.breakEndsAt).not.toBeNull();
+    expect(halftime.timer.breakEndsAt ?? 0).toBeGreaterThan(firstBoundary);
 
     run(env.store, ctx, (state, c, mut) => {
       startSecondHalf(state, matchId, c, mut);
@@ -606,6 +810,8 @@ describe('timer', () => {
     expect(secondHalf.timer.period).toBe(2);
     expect(secondHalf.timer.periodStartElapsedMs).toBe(firstHalfMs);
     expect(secondHalf.timer.running).toBe(true);
+    // The break is over: nothing is counting down any more.
+    expect(secondHalf.timer.breakEndsAt).toBeNull();
     expect(timerRemaining(secondHalf.timer, secondHalf.timer.anchorAt ?? Date.now())).toBe(firstHalfMs);
 
     const secondBoundary = (secondHalf.timer.anchorAt ?? Date.now()) + firstHalfMs;

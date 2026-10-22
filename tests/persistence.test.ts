@@ -104,7 +104,7 @@ describe('embedded database', () => {
     await adapter.close();
   });
 
-  it('survives overlapping snapshot writes without losing the file', async () => {
+  it('serialises overlapping snapshot writes instead of interleaving them', async () => {
     const dir = tempDir('race');
     const adapter = new JsonStorageAdapter(dir);
     await adapter.init();
@@ -115,7 +115,14 @@ describe('embedded database', () => {
     ]);
     const loaded = await adapter.loadSnapshot();
     expect(loaded).not.toBeNull();
-    expect([1, 2, 3]).toContain((loaded as unknown as { state: { which: number } }).state.which);
+    // Three concurrent writes to one file must leave exactly one of them, whole.
+    // Accepting any of the three only proved that the file was not lost; the
+    // queue exists so the *last* write is the survivor, and a torn file would
+    // show up here as a parse failure rather than a stale value.
+    const state = (loaded as unknown as { state: { which: number } }).state;
+    expect(state.which).toBe(3);
+    expect(loaded?.seq).toBe(3);
+    expect(loaded?.savedAt).toBe(3);
     expect(adapter.stats().healthy).toBe(true);
     await adapter.close();
   });
@@ -234,7 +241,46 @@ describe('restart recovery', () => {
     expect(second.store.state.tournament?.name).toBe('Test Cup');
   }, 20000);
 
-  it('falls back to the JSON log when the SQLite file cannot be opened', async () => {
+  it('opens a snapshot whose slices have the wrong types instead of throwing', async () => {
+    // `sanitiseState` is the last line of defence for everything on disk, so it
+    // has to survive more than unparseable JSON. A file that parses but holds
+    // the wrong *shapes* used to reach the fix-ups and throw on the first
+    // property write, which meant a hand-edited or half-migrated file stopped
+    // the server from starting at all.
+    const dir = tempDir('wrong-shapes');
+    const cases: Array<[string, unknown]> = [
+      ['matches values that are not objects', { matches: { m1: 5, m2: null, m3: [1, 2] } }],
+      ['participants values that are not objects', { participants: { p1: 7 } }],
+      ['matchOrder that is a string', { matchOrder: 'abc' }],
+      ['participantOrder that is a number', { participantOrder: 12 }],
+      ['a radball slice that is a primitive', { radball: 'uci_radball_2025' }],
+      ['a tournament that is a primitive', { tournament: 42 }],
+      ['matches that is an array', { matches: [1, 2, 3] }],
+      ['order arrays holding non-strings', { matchOrder: [1, null, 'm1'] }],
+    ];
+    for (const [label, slices] of cases) {
+      const snapshot = { version: 1, savedAt: 1, seq: 1, state: { seq: 1, ...(slices as object) } };
+      writeFileSync(join(dir, 'tournament-state.json'), JSON.stringify(snapshot));
+      rmSync(join(dir, 'tournament-state.json.bak'), { force: true });
+
+      const env = await openAtJson(dir);
+      expect(env.store.state, label).toBeTruthy();
+      // The good parts survive; only the unusable entries are dropped.
+      if ('m3' in (slices as Record<string, unknown>)) {
+        expect(Object.keys(env.store.state.matches), label).not.toContain('m3');
+      }
+      await env.dispose();
+      stores.splice(stores.indexOf(env), 1);
+    }
+
+    // And the store is still writable afterwards.
+    const last = await openAtJson(dir);
+    createQuickTournament(last.store, { participants: 4 });
+    expect(last.store.state.tournament?.name).toBe('Test Cup');
+    expect(last.store.state.matchOrder.every((id) => typeof id === 'string')).toBe(true);
+  }, 20000);
+
+  it.skipIf(!sqliteAvailable())('falls back to the JSON log when the SQLite file cannot be opened', async () => {
     const dir = tempDir('badsqlite');
     const first = await openAt(dir);
     createQuickTournament(first.store, { participants: 4 });
@@ -244,13 +290,34 @@ describe('restart recovery', () => {
     writeFileSync(join(dir, 'tournament.sqlite'), 'this is definitely not a database');
 
     const second = await openAt(dir);
-    // Either the broken file is rejected (and we fall back), or SQLite repairs
-    // itself -- in both cases the server must come up and be usable.
-    expect(['json', 'sqlite']).toContain(second.store.adapter.kind);
-    if (second.store.state.tournament === null) {
-      createQuickTournament(second.store, { participants: 4 });
-    }
+    // A file that is not a database cannot be repaired, so the fallback is the
+    // only correct outcome. Accepting either driver here would leave the test
+    // green whether or not the fallback existed at all.
+    expect(second.store.adapter.kind).toBe('json');
+    // And the operator has to be able to tell a damaged file from a runtime
+    // that simply lacks node:sqlite -- those need different reactions.
+    expect(second.store.adapterNote).toContain('could not be opened');
+    // The server still comes up and is usable.
+    if (second.store.state.tournament === null) createQuickTournament(second.store, { participants: 4 });
     expect(second.store.state.participantOrder.length).toBeGreaterThan(0);
+    await second.store.save();
+    expect(second.store.adapter.stats().healthy).toBe(true);
+  }, 20000);
+
+  it.skipIf(sqliteAvailable())('still works on a runtime without node:sqlite', async () => {
+    // The JSON driver is a supported configuration, not a degraded one, so it
+    // gets the same treatment as the fallback path above rather than being
+    // skipped outright.
+    const dir = tempDir('no-sqlite');
+    const first = await openAt(dir);
+    createQuickTournament(first.store, { participants: 4 });
+    await first.store.flush();
+    await first.dispose();
+
+    const second = await openAt(dir);
+    expect(second.store.adapter.kind).toBe('json');
+    expect(second.store.adapterNote).toContain('node:sqlite not available');
+    expect(second.store.state.tournament?.name).toBe('Test Cup');
   }, 20000);
 
   it('can be pinned to the JSON driver for troubleshooting', async () => {

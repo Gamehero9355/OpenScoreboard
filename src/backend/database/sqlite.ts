@@ -127,10 +127,18 @@ export async function createSqliteAdapter(filePath: string): Promise<StorageAdap
       const data = JSON.stringify(snapshot.state);
       // Rotate the live row into the shadow before replacing it, so there is
       // always one known-good copy to fall back on.
+      //
+      // `DO UPDATE`, not `DO NOTHING`: the shadow holds exactly one row by
+      // design, so every save after the first conflicts with the previous save
+      // and a do-nothing upsert would freeze the shadow at whatever it happened
+      // to hold when it was first written -- turning the "recover the previous
+      // snapshot" fallback into "recover the state from the start of the event",
+      // which is precisely the case it exists for.
       db.prepare(
         `INSERT INTO snapshot_shadow (id, saved_at, seq, version, data)
          SELECT 1, saved_at, seq, version, data FROM snapshot WHERE id = 1
-         ON CONFLICT(id) DO NOTHING`,
+         ON CONFLICT(id) DO UPDATE SET saved_at = excluded.saved_at, seq = excluded.seq,
+           version = excluded.version, data = excluded.data`,
       ).run();
       db.prepare(
         `INSERT INTO snapshot (id, saved_at, seq, version, data) VALUES (1, ?, ?, ?, ?)

@@ -245,7 +245,11 @@ export function AssignMatchDialog({
                 </div>
                 <div className="queue__label">
                   {match.roundName} · {t('dialog.matchLabel', { n: match.position + 1 })}
-                  {match.fieldId ? t('dialog.currentlyOn', { field: state.fields[match.fieldId].name }) : ''}
+                  {match.fieldId
+                    ? t('dialog.currentlyOn', {
+                        field: fieldDisplayName(state.fields[match.fieldId]?.name, match.fieldId, asTranslate(t)),
+                      })
+                    : ''}
                 </div>
               </div>
               <MatchStateBadge state={match.state} />

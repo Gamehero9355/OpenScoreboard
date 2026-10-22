@@ -473,6 +473,97 @@ describe('league tree', () => {
     expect(poster.width).toBeGreaterThan(0);
     expect(poster.height).toBeGreaterThan(0);
   });
+
+  /**
+   * A group stage whose two groups are not the same size.
+   *
+   * Group A plays two fixtures a round and group B plays one, so the second
+   * lane is narrower than the first. That is the case in which the band above
+   * them has to be the width of the wider one, and the narrower lane has to be
+   * centred inside it rather than hanging off its left edge.
+   */
+  function unevenState(): TournamentState {
+    seq = 0;
+    const matches = [
+      fixture(0, 0, 'a1', 'a2', { groupId: 'A' }),
+      fixture(0, 1, 'a3', 'a4', { groupId: 'A' }),
+      fixture(1, 2, 'a1', 'a3', { groupId: 'A' }),
+      fixture(1, 3, 'a2', 'a4', { groupId: 'A' }),
+      fixture(0, 4, 'b1', 'b2', { groupId: 'B' }),
+    ];
+    const base = leagueRadball() as unknown as {
+      groups: Record<string, unknown>;
+      tables: Record<string, unknown>;
+    };
+    return state(matches, {
+      ...base,
+      groups: {
+        ...base.groups,
+        B: { ...(base.groups.B as object), teamIds: ['b1', 'b2'] },
+      },
+      tables: { ...base.tables, B: [row('b1', 1, 6, 'qualified')] },
+    } as unknown as TournamentState['radball']);
+  }
+
+  it('gives a phase band the width of the lanes it titles', () => {
+    const poster = progressionTree(state(leagueMatches(), leagueRadball()));
+    const band = poster.bands[0];
+    // The band is the header over a phase, so it has to be as wide as what it
+    // titles. It used to be the *sum* of the lanes' widths, which made it twice
+    // as wide as the groups under it: the header stretched over empty space
+    // and the next phase stood a whole band of nothing further to the right.
+    expect(band.width).toBe(Math.max(...poster.lanes.map((lane) => lane.width)));
+    for (const lane of poster.lanes) {
+      expect(lane.x).toBeGreaterThanOrEqual(band.x);
+      expect(lane.x + lane.width).toBeLessThanOrEqual(band.x + band.width);
+    }
+  });
+
+  it('centres every lane in its band', () => {
+    const poster = progressionTree(unevenState());
+    const band = poster.bands[0];
+    const narrow = poster.lanes.find((lane) => lane.title === 'Group B');
+    expect(narrow).toBeDefined();
+    // Group B's lane is narrower than the band, and it sits in the middle of
+    // it: a group that hangs off the band's edge reads as a group the phase
+    // forgot to place.
+    expect(narrow!.width).toBeLessThan(band.width);
+    expect(narrow!.x + narrow!.width / 2).toBe(band.x + band.width / 2);
+  });
+
+  it('lines the qualification chips up with the fixtures they come from', () => {
+    const poster = progressionTree(state(leagueMatches(), leagueRadball()));
+    for (const lane of poster.lanes) {
+      const cards = lane.cardKeys.map((key) => poster.cardsById.get(key)!);
+      const left = Math.min(...cards.map((card) => card.x));
+      const right = Math.max(...cards.map((card) => card.x + LEAGUE_CARD_W));
+      for (const output of lane.outputs) {
+        // A chip that reached into the gutter would say the group reached
+        // further than it did.
+        expect(output.x).toBe(left);
+        expect(output.x + output.width).toBe(right);
+      }
+    }
+  });
+
+  it('does not say the same thing twice in a lane’s gutter', () => {
+    const poster = progressionTree(state(finishedMatches(), leagueRadball({ finalPhase: true })));
+    const final = poster.lanes.find((lane) => lane.title === 'Final');
+    expect(final).toBeDefined();
+    // The lane is called "Final" and so is its one round, so a tick would say
+    // the word twice -- and the gutter it would need would be dead space.
+    expect(final!.ticks).toHaveLength(0);
+  });
+
+  it('keeps the champion plate off the poster’s edge', () => {
+    const poster = progressionTree(
+      state(finishedMatches(), leagueRadball({ finalPhase: true, championId: 'a1' })),
+    );
+    expect(poster.crown).not.toBeNull();
+    // The crown is the last thing on the poster, so it keeps the margin the
+    // rest of the poster has. It used to sit flush against the right edge.
+    expect(poster.crown!.x + poster.crown!.width).toBeLessThan(poster.width);
+  });
 });
 
 describe('knockout tree', () => {

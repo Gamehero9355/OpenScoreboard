@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Delta, Match, Participant, RadballCompetition, TournamentState } from '../src/shared/types';
+import type { Match, Participant, RadballCompetition, TournamentState } from '../src/shared/types';
 import { applyDeltaToState } from '../src/frontend/lib/live';
 import { parseRadballTeams } from '../src/frontend/pages/SetupPage';
 import { libraryRosterLines, libraryTeams } from '../src/frontend/lib/teams';
@@ -38,32 +38,68 @@ function libraryWith(name: string) {
  */
 describe('client delta application', () => {
   it('applies every field the Delta type can carry', () => {
-    // The keys a full-featured delta can carry, so a new slice added to Delta
-    // without a matching branch here fails this test instead of the product.
-    const covered: Array<keyof Delta> = [
-      'seq',
-      'updatedAt',
-      'tournament',
-      'settings',
-      'radball',
-      'teamLibrary',
-      'savedTournaments',
-      'fields',
-      'matches',
-      'participants',
-      'removedMatchIds',
-      'removedParticipantIds',
-      'events',
-      'network',
-      'matchOrder',
-      'participantOrder',
-    ];
-    const source = applyDeltaToState.toString();
-    for (const key of covered) {
-      if (key === 'seq' || key === 'updatedAt') continue; // assigned in the object literal
-      if (key === 'network') continue; // handled by the caller, not the state
-      expect(source, `applyDeltaToState must handle delta.${key}`).toContain(`delta.${key}`);
-    }
+    // Every optional field of `Delta`, so a new slice added to the type without
+    // a matching branch in `applyDeltaToState` fails here instead of in the
+    // product: the client would keep rendering a stale slice with no error.
+    //
+    // Checked *behaviourally*, not by reading the function's source text: an
+    // event whose slice arrives alongside an unrelated one has to reach the
+    // resulting state.
+    const before = baseState();
+    const participant = { id: 'p1', name: 'A', team: null, seed: null, checkedIn: true, createdAt: 1, fieldId: null, players: null } as Participant;
+    const match = { id: 'm1', scoreA: 2 } as Match;
+    const competition = { config: { rulesetVersion: 'uci_radball_2025' } } as RadballCompetition;
+    const library = libraryWith('RV Nord I');
+
+    const after = applyDeltaToState(before, {
+      seq: 2,
+      updatedAt: 2,
+      tournament: { id: 't1', name: 'Cup' } as TournamentState['tournament'],
+      settings: { fieldNames: ['A', 'B'] } as TournamentState['settings'],
+      radball: competition,
+      teamLibrary: library,
+      savedTournaments: { entries: {}, order: [] },
+      fields: [{ id: '1', name: 'Court A', matchId: 'm1', controlledBy: null, controlledSince: null }],
+      participants: [participant],
+      matches: [match],
+      removedMatchIds: ['m0'],
+      removedParticipantIds: ['p0'],
+      matchOrder: ['m1'],
+      participantOrder: ['p1'],
+      events: [{ seq: 3, ts: 3, type: 'SYSTEM', fieldId: null, matchId: null, actor: 'Host', message: 'e' }],
+    });
+
+    expect(after.seq).toBe(2);
+    expect(after.updatedAt).toBe(2);
+    expect(after.tournament?.name).toBe('Cup');
+    expect(after.settings.fieldNames).toEqual(['A', 'B']);
+    expect(after.radball).toBe(competition);
+    expect(after.teamLibrary).toBe(library);
+    expect(after.savedTournaments).toEqual({ entries: {}, order: [] });
+    expect(after.fields['1'].name).toBe('Court A');
+    expect(after.participants.p1.name).toBe('A');
+    expect(after.matches.m1.scoreA).toBe(2);
+    expect(after.matchOrder).toEqual(['m1']);
+    expect(after.participantOrder).toEqual(['p1']);
+    expect(after.events.map((e) => e.message)).toEqual(['e']);
+
+    // `network` is applied by the caller rather than to the state, so it is the
+    // one key with no state assertion above. It is checked at the call site.
+    expect(after).not.toHaveProperty('network');
+
+    // Removals have to actually remove, or a deleted match would linger forever.
+    const pruned = applyDeltaToState(after, {
+      seq: 3,
+      updatedAt: 3,
+      removedMatchIds: ['m1'],
+      removedParticipantIds: ['p1'],
+      matchOrder: [],
+      participantOrder: [],
+    });
+    expect(pruned.matches.m1).toBeUndefined();
+    expect(pruned.participants.p1).toBeUndefined();
+    expect(pruned.matchOrder).toEqual([]);
+    expect(pruned.participantOrder).toEqual([]);
   });
 
   it('applies a team library delta, so an added squad shows up at once', () => {

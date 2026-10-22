@@ -180,6 +180,7 @@ export function createTimerState(
     running: false,
     anchorAt: null,
     expired: false,
+    breakEndsAt: null,
   };
 }
 
@@ -212,6 +213,13 @@ export function normaliseTimerState(
     running: input?.running === true,
     anchorAt: typeof input?.anchorAt === 'number' ? input.anchorAt : null,
     expired: input?.expired === true,
+    // A snapshot written before the break had a clock carries no anchor; an
+    // unrecognised one is treated the same way rather than reaching a screen
+    // that would count down from nothing.
+    breakEndsAt:
+      typeof input?.breakEndsAt === 'number' && Number.isFinite(input.breakEndsAt)
+        ? input.breakEndsAt
+        : null,
   };
 }
 
@@ -239,6 +247,26 @@ export function startTimer(timer: TimerState, now: number): void {
   timer.anchorAt = now;
 }
 
+/**
+ * Start the break clock.
+ *
+ * The break between the two halves gets a countdown of its own, so the hall can
+ * see how long the pause has been running. It is an anchor rather than a tick:
+ * the server publishes the moment the break ends and every screen counts down
+ * from it on its own.
+ *
+ * The countdown stopping at zero does not start the second half. The teams have
+ * to be back on their feet first, and that is the host's call.
+ */
+export function startBreak(timer: TimerState, now: number, durationSec: number): void {
+  timer.breakEndsAt = now + Math.max(0, durationSec) * 1000;
+}
+
+/** The break clock is over: nothing is counting down any more. */
+export function clearBreak(timer: TimerState): void {
+  timer.breakEndsAt = null;
+}
+
 export function stopTimer(timer: TimerState, now: number): void {
   if (!timer.running || timer.anchorAt === null) {
     timer.running = false;
@@ -257,6 +285,8 @@ export function resetTimer(timer: TimerState, now: number): void {
   timer.running = false;
   timer.anchorAt = null;
   timer.expired = false;
+  // A reset match is a fresh match: it has no break behind it yet.
+  timer.breakEndsAt = null;
   void now;
 }
 

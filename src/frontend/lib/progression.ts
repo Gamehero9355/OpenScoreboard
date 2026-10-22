@@ -55,11 +55,12 @@ const CARD_GAP_X = 10;
 const ROW_GAP_Y = 14;
 /** Left gutter of a lane, where the round ticks live. */
 const TICK_W = 46;
+/** Gap between a round tick and the fixtures it labels. */
+const TICK_GAP_X = 6;
 const LANE_HEAD_H = LEAGUE_LANE_HEAD_H;
 const LANE_PAD_X = 12;
 const LANE_PAD_Y = 12;
 const LANE_GAP_Y = 20;
-const LANE_GAP_X = 18;
 /** A qualification chip: the leaf a wire leaves from. */
 const OUT_H = 30;
 const OUT_GAP_Y = 6;
@@ -92,6 +93,10 @@ export interface PosterBand {
 /** A round tick in a lane's left gutter. `y` is the row's vertical centre. */
 export interface PosterTick {
   key: string;
+  /** The tick's left edge, relative to the lane it belongs to. */
+  x: number;
+  /** The tick's width. */
+  width: number;
   y: number;
   title: string;
   /** The round's own name, for the tooltip when the tick has to be shortened. */
@@ -260,6 +265,14 @@ interface LaneDraft {
   rows: { key: string; title: string; fullTitle: string; matches: Match[] }[];
   standings: StandingRow[];
   qualifies: number;
+  /**
+   * The lane's own header already says what its single round says.
+   *
+   * Such a lane draws no round tick: saying the same thing twice within one
+   * line of sight is noise, not emphasis. It also gives the gutter back, so
+   * the lane is exactly as wide as the fixtures it holds.
+   */
+  tickRepeats: boolean;
 }
 
 interface StageDraft {
@@ -380,6 +393,39 @@ function orphanLaneTitle(matches: Match[], phase: RadballPhase, t?: Translate): 
 }
 
 /**
+ * The one kind of match a phase-level lane holds, or null when it holds more.
+ *
+ * The final is the one kind whose lane is named after the match itself, so it
+ * is the one kind whose lane header says what its round tick would say.
+ */
+function orphanLaneKind(matches: Match[]): string | null {
+  const kinds = new Set(matches.map((match) => match.radball?.kind));
+  if (kinds.size !== 1) return null;
+  return [...kinds][0] ?? null;
+}
+
+/**
+ * Whether a lane's own header already says what its round tick would say.
+ *
+ * The comparison is on the meaning rather than on the two strings: the engine
+ * writes its round names in English ("Final") and the catalogue's name for the
+ * final is translated ("Finale"), so a plain string comparison only ever
+ * caught the English case and the Final lane kept a gutter that said "Final"
+ * next to a header that already said "Finale".
+ */
+function tickRepeatsTitle(
+  title: string,
+  rows: LaneDraft['rows'],
+  kind: string | null,
+): boolean {
+  if (rows.length !== 1) return false;
+  const round = rows[0]?.title;
+  if (!round) return false;
+  if (round.toLowerCase() === title.toLowerCase()) return true;
+  return kind === 'final';
+}
+
+/**
  * Every lane of the competition, grouped into one stage per phase.
  *
  * A tournament with no Radball model still has to draw something, so it gets one
@@ -399,6 +445,7 @@ function collectStages(state: TournamentState, t?: Translate): StageDraft[] {
   if (all.length === 0) return [];
 
   if (!competition) {
+    const rows = roundRows(all, null);
     return [
       {
         key: 'fixtures',
@@ -410,9 +457,10 @@ function collectStages(state: TournamentState, t?: Translate): StageDraft[] {
             key: 'fixtures:all',
             title: tr('tree.allFixtures'),
             meta: null,
-            rows: roundRows(all, null),
+            rows,
             standings: [],
             qualifies: 0,
+            tickRepeats: tickRepeatsTitle(tr('tree.allFixtures'), rows, null),
           },
         ],
       },
@@ -428,25 +476,30 @@ function collectStages(state: TournamentState, t?: Translate): StageDraft[] {
       if (!group) continue;
       const matches = stageMatches.filter((match) => match.radball?.groupId === group.id);
       if (matches.length === 0) continue;
+      const rows = roundRows(matches, group.name);
       lanes.push({
         key: `group:${group.id}`,
         title: group.name,
         meta: groupMeta(group, matches),
-        rows: roundRows(matches, group.name),
+        rows,
         standings: competition.tables[group.id] ?? [],
         qualifies: group.qualifies,
+        tickRepeats: tickRepeatsTitle(group.name, rows, 'group'),
       });
     }
 
     const orphans = stageMatches.filter((match) => !match.radball?.groupId);
     if (orphans.length > 0) {
+      const title = orphanLaneTitle(orphans, phase, t);
+      const rows = roundRows(orphans, null);
       lanes.push({
         key: `phase:${phase.id}`,
-        title: orphanLaneTitle(orphans, phase, t),
+        title,
         meta: stageMeta(orphans),
-        rows: roundRows(orphans, null),
+        rows,
         standings: [],
         qualifies: 0,
+        tickRepeats: tickRepeatsTitle(title, rows, orphanLaneKind(orphans)),
       });
     }
 
@@ -477,7 +530,10 @@ function laneWidth(lane: LaneDraft): number {
       Math.max(max, row.matches.length * LEAGUE_CARD_W + (row.matches.length - 1) * CARD_GAP_X),
     LEAGUE_CARD_W,
   );
-  return TICK_W + widest + LANE_PAD_X * 2;
+  // Only a lane that draws a tick pays for the gutter. A lane whose header
+  // already says what its round says draws none, and reserving the space
+  // anyway left an empty margin beside its fixtures.
+  return (lane.tickRepeats ? 0 : TICK_W) + widest + LANE_PAD_X * 2;
 }
 
 /** Height of a lane's round rows, gaps included. */
@@ -510,14 +566,20 @@ function laneHeight(lane: LaneDraft): number {
   return LANE_HEAD_H + rowsHeight(lane) + outputsHeight(lane) + LANE_PAD_Y * 2;
 }
 
+/**
+ * How wide a phase band is.
+ *
+ * The groups of a phase are lanes that *stack*, one under the other, so the
+ * band is as wide as the widest of them. Adding their widths up instead made
+ * the band twice as wide as everything under it: the phase's header stretched
+ * over empty space, and the next phase was pushed a whole band's worth of
+ * nothing to the right.
+ */
 function stageWidth(stage: StageDraft): number {
   // The pending final round has no lanes, so its band would measure zero and
   // collapse to nothing. It is sized by the plate it holds instead.
   if (stage.lanes.length === 0) return GHOST_W;
-  return (
-    stage.lanes.reduce((sum, lane) => sum + laneWidth(lane), 0) +
-    Math.max(0, stage.lanes.length - 1) * LANE_GAP_X
-  );
+  return stage.lanes.reduce((max, lane) => Math.max(max, laneWidth(lane)), 0);
 }
 
 function stageHeight(stage: StageDraft): number {
@@ -608,29 +670,33 @@ export function progressionTree(
     for (const lane of stage.lanes) {
       const w = laneWidth(lane);
       const h = laneHeight(lane);
-      const laneX = cursorX;
+      // A lane narrower than the band it sits in is centred in it, so a group
+      // with fewer fixtures does not hang off the band's left edge.
+      const laneX = cursorX + Math.max(0, (width - w) / 2);
       const contentX = laneX + LANE_PAD_X;
       const contentW = w - LANE_PAD_X * 2;
       const ticks: PosterTick[] = [];
       const cardKeys: string[] = [];
 
       // Round rows: a tick in the gutter, the fixtures centred beside it. A lane
-      // with a single row whose tick would repeat the lane's own name -- the
-      // Final lane is both -- gets no tick: saying it twice in one line of
-      // sight is noise, not emphasis.
-      const tickTitles = lane.rows.map((row) => row.title);
-      const tickIsNoise =
-        lane.rows.length === 1 && tickTitles[0] === lane.title.toLowerCase();
+      // whose header already says what its single round says -- the Final lane
+      // is both -- gets no tick: saying it twice in one line of sight is noise,
+      // not emphasis.
+      const hasTick = !lane.tickRepeats;
       // Without a tick the row centres in the whole lane rather than in what is
       // left of it beside the gutter, so the card sits in the middle of its box.
-      const gutter = tickIsNoise ? 0 : TICK_W;
+      const gutter = hasTick ? TICK_W : 0;
       let rowY = cursorY + LANE_HEAD_H + LANE_PAD_Y;
       for (const row of lane.rows) {
         const rowW = row.matches.length * LEAGUE_CARD_W + (row.matches.length - 1) * CARD_GAP_X;
         let cardX = contentX + gutter + (contentW - gutter - rowW) / 2;
-        if (!tickIsNoise) {
+        if (hasTick) {
           ticks.push({
             key: `tick:${lane.key}:${row.key}`,
+            // The tick sits in the gutter, clear of the lane's own edge and of
+            // the fixtures it labels.
+            x: LANE_PAD_X,
+            width: TICK_W - TICK_GAP_X,
             y: rowY + LEAGUE_CARD_H / 2,
             title: row.title,
             fullTitle: row.fullTitle,
@@ -652,9 +718,11 @@ export function progressionTree(
       }
 
       // The lane's output. These are the tree's leaves, and every wire in the
-      // competition leaves one.
+      // competition leaves one. They are as wide as the fixtures they come from
+      // and start where those start: a chip that reached into the gutter would
+      // say the group reached further than it did.
       const outY = cursorY + LANE_HEAD_H + LANE_PAD_Y + rowsHeight(lane) + OUT_GAP_Y;
-      const outputs = buildOutputs(state, lane, contentX, outY, contentW, t);
+      const outputs = buildOutputs(state, lane, contentX + gutter, outY, contentW - gutter, t);
       for (const output of outputs) {
         if (!output.teamId) continue;
         origins.set(output.teamId, { port: rightPort(output), stage: stageIndex });
@@ -780,7 +848,10 @@ export function progressionTree(
     }
   }
 
-  const width = Math.max(PAD * 2, cursorX + (crown ? crown.width : 0));
+  // The crown is the last thing on the poster, so it keeps the same margin the
+  // rest of it has. Without the padding it sat flush against the right edge,
+  // while every other element had a gutter of its own.
+  const width = Math.max(PAD * 2, cursorX + (crown ? crown.width : 0) + PAD);
   const height = PAD * 2 + BAND_HEAD_H + bodyHeight;
 
   return {

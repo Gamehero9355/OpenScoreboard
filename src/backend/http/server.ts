@@ -68,13 +68,29 @@ export function createHttpServer(options: HttpOptions): HttpHandle {
    * host PC could reach a mutating endpoint with a plain HTML form, because a
    * form post is a "simple" request that needs no preflight. Three independent
    * checks close that: browsers label cross-site fetches, they send an Origin
-   * (or Referer) that has to match the Host we were actually reached at, and a
-   * form cannot set `Content-Type: application/json` without a preflight.
+   * (or Referer) that has to match a hostname we actually answer on, and a form
+   * cannot set `Content-Type: application/json` without a preflight.
+   *
+   * The hostname list is derived from `getNetwork()`, so it cannot go stale: it
+   * holds exactly the addresses the join links and the QR codes advertise. It is
+   * rebuilt per request rather than cached because a machine that is still
+   * enumerating its interfaces gets its address a second after startup, and a
+   * phone that was handed that address must not be refused.
    *
    * Deliberately permissive when *neither* Origin nor Referer is present: those
    * requests do not come from a browser page, so the tests and any scripted
    * administration keep working.
    */
+  const allowedHosts = (): Set<string> => {
+    const network = options.getNetwork();
+    const hosts = new Set<string>(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1', '::']);
+    if (network.mdnsName) hosts.add(network.mdnsName.toLowerCase());
+    if (network.hostname) hosts.add(network.hostname.toLowerCase());
+    if (network.primaryIp) hosts.add(network.primaryIp);
+    for (const candidate of network.allIps) hosts.add(candidate.address);
+    return hosts;
+  };
+
   app.use((request: Request, response: Response, next: NextFunction) => {
     if (!isUnsafeMethod(request.method)) {
       next();
@@ -84,7 +100,7 @@ export function createHttpServer(options: HttpOptions): HttpHandle {
       next();
       return;
     }
-    if (crossSite(request)) {
+    if (crossSite(request, allowedHosts(), options.port())) {
       response
         .status(403)
         .json({ ok: false, code: 'FORBIDDEN', error: 'Cross-site requests are not accepted here.' });
@@ -401,22 +417,62 @@ function asyncRoute(
 }
 
 /**
+ * Split a `Host` header into its host and port, lowercased.
+ *
+ * IPv6 arrives bracketed (`[fe80::1]:3000`), so the colon search has to skip
+ * past the closing bracket rather than splitting on the last colon blindly.
+ */
+function hostParts(value: string): { host: string; port: string } {
+  const raw = value.trim().toLowerCase();
+  if (raw.startsWith('[')) {
+    const end = raw.indexOf(']');
+    if (end >= 0) {
+      return { host: raw.slice(0, end + 1), port: raw.slice(end + 2) };
+    }
+    return { host: raw, port: '' };
+  }
+  const colon = raw.lastIndexOf(':');
+  return colon < 0 ? { host: raw, port: '' } : { host: raw.slice(0, colon), port: raw.slice(colon + 1) };
+}
+
+/**
  * True when the request looks like it was initiated by another site.
  *
- * `Sec-Fetch-Site` is definitive when present (every current browser sends it),
- * and the Origin/Referer comparison covers the rest. Comparing against the Host
- * we were actually reached at means this works for the loopback URL, the LAN IP
- * and the mDNS hostname without maintaining an allowlist of all three.
+ * `Sec-Fetch-Site` is definitive when present (every current browser sends it).
+ * Below that, the check is anchored on a list of hostnames this server actually
+ * answers on -- loopback, every local IP, the mDNS name and this machine's own
+ * hostname -- and *not* on the `Host` header the request claims.
+ *
+ * That distinction is the whole defence. Comparing `Origin` against `Host` looks
+ * equivalent but is not: under DNS rebinding an attacker's page is served from
+ * its own origin while resolving to this machine, so it sends
+ * `Host: attacker.example` *and* `Origin: http://attacker.example` and the two
+ * agree perfectly. The response is then granted admin, because loopback requests
+ * are admin without a token. Validating `Host` against a list we control cannot
+ * be spoofed that way, and costs nothing: the list is the set of addresses we
+ * hand out in the join links in the first place.
  */
-function crossSite(request: Request): boolean {
+function crossSite(request: Request, allowedHosts: Set<string>, port: number): boolean {
   const site = stringHeader(request.headers['sec-fetch-site']);
   if (site && site !== 'same-origin' && site !== 'none') return true;
 
-  const host = stringHeader(request.headers.host);
+  // HTTP/1.1 requires `Host`. Without one there is nothing to anchor on.
+  const hostHeader = stringHeader(request.headers.host);
+  if (!hostHeader) return true;
+  const { host, port: hostPort } = hostParts(hostHeader);
+  // An absent port means the default for the scheme, which is not us unless the
+  // server really is listening there.
+  if (hostPort !== '' && hostPort !== String(port)) return true;
+  if (!allowedHosts.has(host)) return true;
+
+  // The canonical `host[:port]` this request was addressed to, once the Host
+  // header has been validated. Origin and Referer are compared against *this*,
+  // never against the raw header, so the two sides are normalised the same way.
+  const authority = hostPort === '' ? host : `${host}:${hostPort}`;
+
   const origin = stringHeader(request.headers.origin);
   if (origin) {
-    if (!host) return true;
-    return origin !== `http://${host}` && origin !== `https://${host}`;
+    return origin !== `http://${authority}` && origin !== `https://${authority}`;
   }
 
   const referer = stringHeader(request.headers.referer);
@@ -424,7 +480,7 @@ function crossSite(request: Request): boolean {
     try {
       const url = new URL(referer);
       const expected = request.protocol === 'https' ? 'https' : 'http';
-      if (url.host !== host) return true;
+      if (url.host !== authority) return true;
       if (url.protocol.replace(':', '') !== expected) return true;
     } catch {
       return true;

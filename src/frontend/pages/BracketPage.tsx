@@ -7,12 +7,13 @@
  * projector.
  */
 import { useMemo } from 'react';
-import { fieldIds, firstFieldMatchId, isRealMatch, nameOf } from '../../shared/matchUtils';
+import { fieldIds, firstFieldMatchId, nameOf } from '../../shared/matchUtils';
 import { computeResults } from '../../shared/stats';
 import { useLive, useWakeLock } from '../lib/hooks';
 import { useI18n } from '../lib/useI18n';
 import { tr } from '../lib/i18n';
 import { live } from '../lib/live';
+import { competitionProgress } from '../lib/radball';
 import { navigate } from '../lib/router';
 import { Badge, Button, ConnectionBadge, Empty, PageHeader } from '../components/primitives';
 import { BracketView } from '../components/BracketView';
@@ -54,11 +55,14 @@ export function BracketPage() {
   // which unmounts the whole app.
   const isRadball = Boolean(state?.radball && state.tournament?.format === 'radball');
 
+  // Same helper as every other masthead, so this page cannot report a different
+  // "played x of y" than the Results tab. It has to be a hook: the early return
+  // below must not change the hook count between renders.
+  const progress = useMemo(() => (state ? competitionProgress(state) : { finished: 0, total: 0 }), [state]);
+
   if (!state) {
     return <Empty>{t('conn.connecting')}…</Empty>;
   }
-
-  const finishedCount = Object.values(state.matches).filter((match) => match.state === 'FINISHED' && isRealMatch(match)).length;
 
   return (
     <>
@@ -77,7 +81,7 @@ export function BracketPage() {
             ) : null}
           </>
         }
-        progress={{ done: finishedCount, total: Object.keys(state.matches).length, label: t('results.played') }}
+        progress={{ done: progress.finished, total: progress.total, label: t('results.played') }}
         actions={
           <>
             <Button size="sm" tone="ghost" onClick={() => navigate('/display')} title={t('bracket.openDisplayTitle')}>

@@ -223,6 +223,13 @@ function LiveMatch({
   const halftime = match.state === 'HALFTIME';
   const finished = match.state === 'FINISHED';
   const playable = Boolean(match.participantAId && match.participantBId);
+  /**
+   * Whether the break can still be called: a match played in two halves, still
+   * in the first of them, and under way. The button appears exactly while it
+   * does something, so the row never carries a control that cannot work.
+   */
+  const firstHalfLive =
+    match.timer.periodCount === 2 && match.timer.period === 1 && (running || paused);
 
   const score = (side: 'A' | 'B', delta: number) =>
     live.command('match.score', { matchId: match.id, side, delta, fieldId });
@@ -307,6 +314,20 @@ function LiveMatch({
         <Button disabled={finished} onClick={() => live.command('match.reset', { matchId: match.id, fieldId })}>
           {t('action.reset')}
         </Button>
+        {/* The break, when the host calls it: the clock stops and the teams
+            change over, but the match goes on. Only the first half can end
+            this way -- the second half is the last period, and ending it is
+            ending the match, which the button next to it does with the winner
+            still to be decided. */}
+        {firstHalfLive ? (
+          <Button
+            disabled={!playable}
+            onClick={() => live.command('match.endHalf', { matchId: match.id, fieldId })}
+            title={t('fc.endHalfHint')}
+          >
+            {t('action.endHalf')}
+          </Button>
+        ) : null}
         <Button tone="danger" disabled={finished || !playable} onClick={() => onEndMatch(match)}>
           {t('action.finish')}
         </Button>

@@ -16,12 +16,12 @@
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Match, TournamentState } from '../../shared/types';
-import { isRealMatch, logoOf, nameOf } from '../../shared/matchUtils';
+import { fieldName, isRealMatch, logoOf, nameOf } from '../../shared/matchUtils';
 import { computeResults } from '../../shared/stats';
 import { resultsCsv } from '../../shared/exports';
 import { useLive } from '../lib/hooks';
 import { asTranslate, useI18n } from '../lib/useI18n';
-import { competitionFixtures, competitionProgress, roundNameLabel } from '../lib/radball';
+import { competitionFixtures, competitionProgress, gamesForResults, roundNameLabel } from '../lib/radball';
 import { live } from '../lib/live';
 import { navigate } from '../lib/router';
 import { downloadBlob, formatDateTime, formatTime } from '../lib/util';
@@ -45,15 +45,14 @@ export function ResultsPage() {
   // The same progress definition the Competition tab uses, so the two headers
   // can never show different numbers for the same tournament.
   const progress = useMemo(() => (state ? competitionProgress(state) : { finished: 0, total: 0 }), [state]);
-  // Every game of the competition, newest round first.
+  // Every game of the competition, in the order the list reads them: the games
+  // on a field right now, then the games still waiting to be played, then the
+  // games that have been played.
   //
-  // `competitionFixtures` itself stays in playing order -- "what do we call next"
-  // is answered from it, and that answer has to stay oldest-first or the queue
-  // would run backwards. Only the printed list is reversed, so the table reads
-  // the way the rest of the page does: the match history below it is already
-  // newest-first, and during an event the fixture on a field right now is at the
-  // top of the list instead of at the bottom of a 46vh scroll box.
-  const games = useMemo(() => state ? [...competitionFixtures(state)].sort((a,b) => (b.finishedAt ?? b.startedAt ?? 0)-(a.finishedAt ?? a.startedAt ?? 0)) : [], [state]);
+  // `competitionFixtures` itself stays in playing order -- "what do we call
+  // next" is answered from it, and that answer has to stay oldest-first or
+  // the queue would run backwards.
+  const games = useMemo(() => (state ? gamesForResults(state) : []), [state]);
 
   const history = useMemo(() => {
     if (!state) return [];
@@ -288,13 +287,19 @@ export function ResultsPage() {
                         {roundNameLabel(match.roundName, asTranslate(t))}
                         {match.isThirdPlace ? ` · ${t('round.thirdPlace')}` : ''}
                       </td>
-                      <td className="small dim">{match.fieldId ? state.fields[match.fieldId].name : '—'}</td>
+                      <td className="small dim">{match.fieldId ? fieldName(state, match.fieldId) : '—'}</td>
                       <td>
                         {nameOf(state, match.participantAId)} <span className="faint">vs</span>{' '}
                         {nameOf(state, match.participantBId)}
                       </td>
                       <td className="num tnum">
                         {match.scoreA} : {match.scoreB}
+                        {match.halftimeScore ? (
+                          <span className="results__half" title={t('results.halftimeScore')}>
+                            {' '}
+                            ({match.halftimeScore.a} : {match.halftimeScore.b})
+                          </span>
+                        ) : null}
                       </td>
                       <td>
                         {match.winnerId ? (
@@ -353,15 +358,20 @@ function GamesTable({ state, games }: { state: TournamentState; games: Match[] }
         </thead>
         <tbody>
           {games.map((match) => {
-            // A level 0:0 has not been played, and an unplayed fixture says so
-            // with its state badge -- printing 0 : 0 for it would read as a
-            // goalless draw that never happened.
-            const started = match.scoreA > 0 || match.scoreB > 0;
+            // A game that was played has a result, even a goalless one: a
+            // finished 0:0 is a draw that happened, while an unplayed
+            // fixture says so with its state badge -- printing 0 : 0 for it
+            // would read as a goalless draw that never happened.
+            const started = match.scoreA > 0 || match.scoreB > 0 || match.state === 'FINISHED';
+            // The score the teams had when the half ended, for a game that got
+            // that far. It sits beside the final one, the way a result is
+            // reported: "5 : 3 (2 : 1)".
+            const halftime = match.halftimeScore;
             // The game's number in the order it is played, not its row on this
-            // screen. The list is newest-first, so counting from the end keeps
-            // game 1 at the bottom reading "1" -- otherwise the top row would
-            // read "1" and the last game played would read "20" as if it were
-            // the first.
+            // screen: the list is ordered by when things happened, and a game
+            // keeps the number it was given when the draw was made. A row
+            // index would read "1" on the first game played and "20" on the
+            // last one, as if the last game were the first.
             const number = competitionFixtures(state).findIndex((m) => m.id === match.id) + 1;
             return (
               <tr key={match.id}>
@@ -381,6 +391,12 @@ function GamesTable({ state, games }: { state: TournamentState; games: Match[] }
                     {started ? (
                       <>
                         {match.scoreA} : {match.scoreB}
+                        {halftime ? (
+                          <span className="rb-games__half" title={t('results.halftimeScore')}>
+                            {' '}
+                            ({halftime.a} : {halftime.b})
+                          </span>
+                        ) : null}
                       </>
                     ) : null}
                   </span>

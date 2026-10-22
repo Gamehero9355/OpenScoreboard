@@ -94,6 +94,19 @@ export const MATCH_STATES: MatchState[] = [
 ];
 
 /**
+ * The break between the two halves, unless the host sets another length.
+ *
+ * Long enough for the teams to change over and the hall to take a breath,
+ * short enough that a two-field event does not lose a quarter of its evening
+ * to the pause.
+ */
+export const DEFAULT_BREAK_DURATION_SEC = 120;
+
+/** The shortest and longest break a host may set, in seconds. */
+export const MIN_BREAK_DURATION_SEC = 10;
+export const MAX_BREAK_DURATION_SEC = 60 * 60;
+
+/**
  * Where a bracket slot gets its occupant from. `bye` means the slot is
  * permanently empty (participant count is not a power of two) which lets the
  * engine auto-advance the other side without waiting for a real match.
@@ -123,6 +136,15 @@ export interface TimerState {
   /** Epoch ms at which the running segment started (null when paused). */
   anchorAt: number | null;
   expired: boolean;
+  /**
+   * Epoch ms at which the break between the two halves ends.
+   *
+   * Set when the match reaches its break, cleared when the second half
+   * starts. It is an anchor rather than a tick, like every other clock in the
+   * app: the server publishes the moment and each screen works out the rest
+   * for itself, so a hundred projectors cost one message.
+   */
+  breakEndsAt: number | null;
 }
 
 export type ScoreActionKind =
@@ -176,6 +198,11 @@ export interface Match {
   loserId: string | null;
   startedAt: number | null;
   finishedAt: number | null;
+  /**
+   * The score at the break, once the match has had one. Null for a match that
+   * has not reached its break, and for a match played in one half.
+   */
+  halftimeScore: HalftimeScore | null;
   timer: TimerState;
   nextWinMatchId: string | null;
   nextWinSlot: 'A' | 'B' | null;
@@ -341,8 +368,18 @@ export interface StandingRow {
   note: string | null;
 }
 
-export interface ShootoutAttempt {
-  /** Alternating throwing order, team A always throws first. */
+/**
+ * The score the teams had when the first half ended.
+ *
+ * Null until the match has been at its break. A game is reported as its two
+ * halves as well as its final whistle, so the result sheet can show both.
+ */
+export interface HalftimeScore {
+  a: number;
+  b: number;
+}
+
+export interface ShootoutAttempt {  /** Alternating throwing order, team A always throws first. */
   side: 'A' | 'B';
   /** Index of the throwing player within the team (0 or 1). */
   shooter: number;
@@ -867,6 +904,33 @@ export function displayScreenFor(
 }
 
 /**
+ * The screen a field's own display shows while its match is at the break.
+ *
+ * A match in two halves reaches its break by itself when the clock runs out,
+ * or because the host called it. Either way the hall has to be told that the
+ * game stopped, so the field's screen says PAUSE for the break -- but only
+ * while it is showing the score board. A screen the host chose on purpose --
+ * the wall clock, the club crest, the tables -- keeps that picture: the break
+ * does not take over a screen the host picked.
+ *
+ * The board comes back by itself when the second half starts, because the
+ * screen was never changed -- only what is drawn on it. That also means the
+ * rule cannot leave a field stuck on the pause notice: a match that is
+ * cancelled, finished or taken off the field is no longer at the break, and
+ * the wall goes back to what it was showing.
+ *
+ * The combined display (`/display`) shows every field at once, so it never
+ * takes one field's break onto the whole wall: the caller does not ask.
+ */
+export function screenAtBreak(
+  screen: DisplayScreen,
+  matchState: MatchState | null | undefined,
+): DisplayScreen {
+  if (matchState === 'HALFTIME' && screen === 'scores') return 'pause';
+  return screen;
+}
+
+/**
  * The pause/logo caption a display shows: its own per-field message when set,
  * otherwise the hall-wide one. Mirrors `displayScreenFor`.
  */
@@ -920,6 +984,14 @@ export interface Settings {
   displayMessage: string | null;
   /* Scoring */
   defaultMatchDurationSec: number;
+  /**
+   * How long the break between the two halves lasts, in seconds.
+   *
+   * The countdown starts when the first half ends and stops at zero: the
+   * second half is still started by the host, because the teams have to be
+   * back on their feet first.
+   */
+  breakDurationSec: number;
   scoringIncrements: number[];
   winCondition: WinCondition;
   maxScore: number | null;
@@ -1057,6 +1129,12 @@ export interface NetworkInfo {
   port: number;
   url: string | null;
   mdnsName: string;
+  /**
+   * This machine's own hostname. Advertised so a host who types the PC name
+   * rather than the IP gets a working link, and used by the server to decide
+   * which `Host` headers are its own.
+   */
+  hostname: string;
   status: 'CONNECTED' | 'NO_NETWORK_CONNECTION' | 'LOOPBACK_ONLY';
   serverStartedAt: number;
   uptimeSec: number;

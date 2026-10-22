@@ -253,6 +253,7 @@ function makeRadballMatch(opts: {
     loserId: null,
     startedAt: null,
     finishedAt: null,
+    halftimeScore: null,
     timer: createTimerState('down', opts.durationSec, opts.periodCount),
     nextWinMatchId: null,
     nextWinSlot: null,

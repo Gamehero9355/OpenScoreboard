@@ -426,7 +426,14 @@ describe('display screen switching', () => {
     expect(server.store.state.settings.displayScreens?.['2']).toBe('standings');
     expect(server.store.state.settings.displayScreen).toBe('scores');
 
-    // Per-field messages travel with their own display.
+    // Per-field messages travel with their own display, and a per-field switch
+    // must not disturb the hall-wide one. The global message is set here rather
+    // than relied on from an earlier test: these share one server, so an
+    // assertion that depended on the previous test's leftovers would pass in a
+    // full run and fail under `-t`.
+    const hallPause = await host.command('display.setScreen', { screen: 'pause', message: 'Finale' });
+    expect(hallPause.ok).toBe(true);
+    expect(server.store.state.settings.displayMessage).toBe('Finale');
     const withMessage = await host.command('display.setScreen', {
       screen: 'pause',
       target: '1',
@@ -434,7 +441,7 @@ describe('display screen switching', () => {
     });
     expect(withMessage.ok).toBe(true);
     expect(server.store.state.settings.displayMessages?.['1']).toBe('Pause auf Feld 1');
-    expect(server.store.state.settings.displayMessage).toBe('Halbzeit');
+    expect(server.store.state.settings.displayMessage).toBe('Finale');
 
     // An operator cannot flip another field's TV.
     const crossing = await field1.command('display.setScreen', { screen: 'scores', target: '2' });

@@ -117,10 +117,11 @@
   }
 
   /* A tick without its row beside it is just a floating word, so on paper the
-     round name goes back above the fixtures it labels. */
+     round name goes back above the fixtures it labels. The width comes from the
+     layout inline, so it has to be overridden here too. */
   .lane__tick {
     display: block;
-    width: auto;
+    width: auto !important;
     margin-top: 8px;
     color: var(--text-dim) !important;
     -webkit-line-clamp: none;

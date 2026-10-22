@@ -1,5 +1,6 @@
 import type { FieldState, Settings, TournamentState } from '../../shared/types';
 import {
+  DEFAULT_BREAK_DURATION_SEC,
   DEFAULT_FIELD_COUNT,
   defaultFieldNames,
   emptySavedTournamentLibrary,
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   displayMessages: {},
   displayMessage: null,
   defaultMatchDurationSec: 180,
+  breakDurationSec: DEFAULT_BREAK_DURATION_SEC,
   scoringIncrements: [1, 2, 3],
   winCondition: 'manual',
   maxScore: null,

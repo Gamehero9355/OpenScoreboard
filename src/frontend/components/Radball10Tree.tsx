@@ -164,56 +164,108 @@ function GroupCard({ state, group }: { state: TournamentState; group: GroupSlot 
       {table.length === 0 ? (
         <Empty>{t('results.noMatches')}</Empty>
       ) : (
-        <table className="table rbt__standing-table">
-          <caption className="sr-only">
-            {groupNameLabel(group.name, asTranslate(t))} {t('results.standings')}:{' '}
-            {t('results.rank')}, {t('results.team')},{' '}
-            {t('results.diff')}, {t('results.pts')}
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">
-                <span className="sr-only">{t('results.rank')}</span>
-              </th>
-              <th scope="col">
-                <span className="sr-only">{t('results.team')}</span>
-              </th>
-              <th scope="col" className="rbt__num">
-                GD
-              </th>
-              <th scope="col" className="rbt__num">
-                {t('results.pts')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.map((row) => (
-              <tr key={row.teamId} className={row.rank <= 2 ? 'rbt__row--semifinalist' : undefined}>
-                {/* `data-slot` lets the connector find this position's row without the
-                    tree having to know the DOM order of the two tables. */}
-                <td className="tnum rbt__pos" data-slot={`${group.letter}${row.rank}`}>
-                  {group.letter}
-                  {row.rank}
-                </td>
-                {/* The squad is this row's header, so it is a `th`: a screen reader
-                    announces "Team A, 3" rather than reading the cells in order. The
-                    crest is the same one every other match row in the app carries, and
-                    it disappears on its own for a squad with no logo on file. */}
-                <th scope="row" className="rbt__team">
-                  <CrestWithName
-                    logo={logoOf(state, row.teamId)}
-                    name={nameOf(state, row.teamId)}
-                    size="xs"
-                  />
+        /*
+         * The table scrolls sideways rather than squeezing its columns.
+         *
+         * Eight columns of figures need a width a phone does not have, and a
+         * table that squeezes them clips the labels that name them -- a "PTS"
+         * that does not fit is a table nobody can read. So the table keeps the
+         * width its labels need and the card scrolls it, which is what the
+         * official table on the Standings page does. On the hall screen and the
+         * host's laptop there is nothing to scroll.
+         */
+        <div className="rbt__standing-wrap">
+          <table className="table rbt__standing-table">
+            <caption className="sr-only">
+              {groupNameLabel(group.name, asTranslate(t))} {t('results.standings')}:{' '}
+              {t('results.rank')}, {t('results.team')}, {t('results.played')}, {t('results.won')},{' '}
+              {t('results.drawn')}, {t('results.lost')}, {t('results.diff')}, {t('results.pts')}
+            </caption>
+            {/*
+              The group table, full width.
+
+              A card in this panel is as wide as the panel, and five rows of
+              names stretched across it left a void the eye read as a mistake:
+              the two figures sat in the far corner and the strip above them
+              named only those two. So the width carries the group's own figures
+              instead -- the same columns, in the same short labels and with the
+              same tooltips, as the official table on the Standings page, so the
+              two read as one table at two sizes.
+
+              The labels are the abbreviated ones the official table uses (MP,
+              W, D, L, GD, PTS) with the full word behind the tooltip and behind
+              the screen reader, because a table that names its columns in full
+              cannot hold the numbers at the size a hall reads them.
+            */}
+            <thead>
+              <tr>
+                <th scope="col" className="rbt__col-pos">
+                  {t('results.rank')}
                 </th>
-                <td className="tnum rbt__num">
-                  {row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}
-                </td>
-                <td className="tnum rbt__pts rbt__num">{row.points}</td>
+                <th scope="col" className="rbt__col-squad">
+                  {t('results.team')}
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.played')}>
+                  MP<span className="sr-only"> {t('results.played')}</span>
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.won')}>
+                  W<span className="sr-only"> {t('results.won')}</span>
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.drawn')}>
+                  D<span className="sr-only"> {t('results.drawn')}</span>
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.lost')}>
+                  L<span className="sr-only"> {t('results.lost')}</span>
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.diff')}>
+                  GD<span className="sr-only"> {t('results.diff')}</span>
+                </th>
+                <th scope="col" className="rbt__num" title={t('results.pts')}>
+                  PTS<span className="sr-only"> {t('results.pts')}</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {table.map((row) => (
+                <tr
+                  key={row.teamId}
+                  className={cx(
+                    // Ranks one and two of every group enter the semifinals, in
+                    // every size this format has, so the cut is the same rule
+                    // the structure is built from.
+                    row.rank <= 2 && 'rbt__standing-row--through',
+                  )}
+                >
+                  {/* `data-slot` lets the connector find this position's row without the
+                      tree having to know the DOM order of the two tables. */}
+                  <td className="tnum rbt__pos" data-slot={`${group.letter}${row.rank}`}>
+                    {group.letter}
+                    {row.rank}
+                  </td>
+                  {/* The squad is this row's header, so it is a `th`: a screen reader
+                      announces "Team A, 3" rather than reading the cells in order. The
+                      crest is the same one every other match row in the app carries, and
+                      it disappears on its own for a squad with no logo on file. */}
+                  <th scope="row" className="rbt__team">
+                    <CrestWithName
+                      logo={logoOf(state, row.teamId)}
+                      name={nameOf(state, row.teamId)}
+                      size="xs"
+                    />
+                  </th>
+                  <td className="tnum rbt__num">{row.played}</td>
+                  <td className="tnum rbt__num">{row.won}</td>
+                  <td className="tnum rbt__num">{row.drawn}</td>
+                  <td className="tnum rbt__num">{row.lost}</td>
+                  <td className="tnum rbt__num">
+                    {row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}
+                  </td>
+                  <td className="tnum rbt__pts rbt__num">{row.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* The two matches this field is about. Absent rather than dashed: an empty

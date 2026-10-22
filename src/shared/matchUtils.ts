@@ -17,6 +17,50 @@ export function isPlayable(match: Match): boolean {
 }
 
 /**
+ * The match, or matches, that decide the tournament.
+ *
+ * One implementation, shared by the engine and the results report, because the
+ * two used to answer differently and a disagreement is silent and total: the
+ * engine pointed at a generated-but-unplayed *reset* (nobody has won until it is
+ * played) while the report looked for a `FINISHED` one and fell back to the
+ * grand final. The tournament would then refuse to crown a champion the report
+ * had already named.
+ *
+ * The filter is `state !== 'CANCELLED'`, not `state === 'FINISHED'`: an unplayed
+ * reset is still the decider, and a cancelled one has correctly stopped being
+ * it. `finaliseTournament` checks the states itself before crowning.
+ */
+export function decidingMatchIds(state: TournamentState): string[] {
+  if (!state.tournament) return [];
+  // A manual schedule has no decider: every fixture is one the host wrote down,
+  // and crowning the winner of whichever happens to sit last would be a
+  // champion named by an accident of ordering. The host ends the event
+  // deliberately, with `tournament.complete`.
+  if (state.tournament.format === 'manual-schedule') return [];
+  const reset = Object.values(state.matches).find((m) => m.bracket === 'reset' && m.state !== 'CANCELLED');
+  if (reset) return [reset.id];
+  if (state.tournament.format === 'double-elimination') {
+    const final = Object.values(state.matches).find((m) => m.bracket === 'final');
+    if (final) return [final.id];
+  }
+  // Otherwise the last winners-bracket round: highest round, leftmost slot.
+  let best: Match | null = null;
+  for (const match of Object.values(state.matches)) {
+    if (match.bracket !== 'winners' || match.isThirdPlace) continue;
+    if (!best || match.round > best.round || (match.round === best.round && match.position < best.position)) {
+      best = match;
+    }
+  }
+  return best ? [best.id] : [];
+}
+
+/** `decidingMatchIds` as a single match, for callers that just want the node. */
+export function decidingMatch(state: TournamentState): Match | null {
+  const id = decidingMatchIds(state)[0];
+  return id ? (state.matches[id] ?? null) : null;
+}
+
+/**
  * Is this match currently sitting on a playing field?
  *
  * `match.fieldId` is kept after a match finishes so the board can still show
@@ -39,6 +83,22 @@ export function isOnField(state: TournamentState, match: Match, fieldId?: FieldI
 
 export function isLiveMatchState(state: MatchState): boolean {
   return state === 'RUNNING' || state === 'PAUSED' || state === 'HALFTIME';
+}
+
+/**
+ * The match at its break among these fields, if any.
+ *
+ * A display covers one field or all of them, and the pause screen counts the
+ * break down. A per-field display therefore shows its own field's break; the
+ * combined display shows the break of whichever of its fields is paused.
+ */
+export function matchAtBreak(state: TournamentState, fieldIds: FieldId[]): Match | null {
+  for (const fieldId of fieldIds) {
+    const matchId = state.fields[fieldId]?.matchId;
+    const match = matchId ? state.matches[matchId] : null;
+    if (match && match.state === 'HALFTIME') return match;
+  }
+  return null;
 }
 
 export const MATCH_STATE_LABEL: Record<MatchState, string> = {
